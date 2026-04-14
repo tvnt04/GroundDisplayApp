@@ -1,0 +1,1646 @@
+{
+  "low_fps_integration": {
+    "fields": {
+      "applied_bandxshift": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_exposuretime": {
+        "M2": 0.4899999999993209,
+        "max": 28999.8,
+        "mean": 28999.449999999997,
+        "min": 28999.1,
+        "n": 4,
+        "std": 0.404145188432458
+      },
+      "applied_fps": {
+        "M2": 0.0,
+        "max": 26.0,
+        "mean": 26.0,
+        "min": 26.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_gain": {
+        "M2": 0.0,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_height": {
+        "M2": 0.0,
+        "max": 1345.0,
+        "mean": 1345.0,
+        "min": 1345.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_regionheight": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_tdi_modes": {
+        "M2": 0.0,
+        "max": 2.0,
+        "mean": 2.0,
+        "min": 2.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_tdi_stages": {
+        "M2": 0.0,
+        "max": 2.0,
+        "mean": 2.0,
+        "min": 2.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_tdiyshift": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_width": {
+        "M2": 0.0,
+        "max": 8448.0,
+        "mean": 8448.0,
+        "min": 8448.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "band_height": {
+        "M2": 0.0,
+        "max": 192.0,
+        "mean": 192.0,
+        "min": 192.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "band_selection": {
+        "M2": 0.0,
+        "max": 127.0,
+        "mean": 127.0,
+        "min": 127.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "core_temp_before": {
+        "M2": 1.0,
+        "max": 53.0,
+        "mean": 52.5,
+        "min": 52.0,
+        "n": 4,
+        "std": 0.5773502691896257
+      },
+      "core_temp_delta": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "disk_free_gb": {
+        "M2": 135.72250000000213,
+        "max": 1270.17,
+        "mean": 1264.345,
+        "min": 1258.52,
+        "n": 4,
+        "std": 6.726130636059193
+      },
+      "duration_sec": {
+        "M2": 0.0,
+        "max": 4.0,
+        "mean": 4.0,
+        "min": 4.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "exposure_requested": {
+        "M2": 0.0,
+        "max": 29000.0,
+        "mean": 29000.0,
+        "min": 29000.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "file_size_bytes": {
+        "M2": 0.0,
+        "max": 1477132800.0,
+        "mean": 1477132800.0,
+        "min": 1477132800.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "fps_mean": {
+        "M2": 3.9999999999813554e-08,
+        "max": 26.0598,
+        "mean": 26.0597,
+        "min": 26.0596,
+        "n": 4,
+        "std": 0.00011547005383765604
+      },
+      "fps_requested": {
+        "M2": 0.0,
+        "max": 26.0,
+        "mean": 26.0,
+        "min": 26.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "fps_std": {
+        "M2": 2.250000000000004e-06,
+        "max": 0.0363,
+        "mean": 0.03555,
+        "min": 0.0348,
+        "n": 4,
+        "std": 0.0008660254037844393
+      },
+      "frame_drops": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "frame_size_bytes": {
+        "M2": 0.0,
+        "max": 14203200.0,
+        "mean": 14203200.0,
+        "min": 14203200.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "frames_captured": {
+        "M2": 0.0,
+        "max": 104.0,
+        "mean": 104.0,
+        "min": 104.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "frames_expected": {
+        "M2": 0.0,
+        "max": 104.0,
+        "mean": 104.0,
+        "min": 104.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "g_tdiyshift": {
+        "M2": 0.0,
+        "max": 192.0,
+        "mean": 192.0,
+        "min": 192.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "gain_requested": {
+        "M2": 0.0,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "grabber_connect_s": {
+        "M2": 0.00034173219600000006,
+        "max": 0.663835,
+        "mean": 0.654592,
+        "min": 0.645349,
+        "n": 4,
+        "std": 0.010672897076239423
+      },
+      "meta_total_frames": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "sensor_temp_after": {
+        "M2": 1157.3604000000003,
+        "max": 48.84,
+        "mean": 31.830000000000002,
+        "min": 14.82,
+        "n": 4,
+        "std": 19.64145615783107
+      },
+      "sensor_temp_before": {
+        "M2": 1152.6025000000002,
+        "max": 48.77,
+        "mean": 31.795,
+        "min": 14.82,
+        "n": 4,
+        "std": 19.601041638987795
+      },
+      "sensor_temp_delta": {
+        "M2": 0.004900000000000001,
+        "max": 0.07,
+        "mean": 0.035,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.04041451884327381
+      },
+      "tdi_byte": {
+        "M2": 0.0,
+        "max": 10.0,
+        "mean": 10.0,
+        "min": 10.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "tdi_yshift": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "timediff_mean_ms": {
+        "M2": 3.600000000068485e-07,
+        "max": 38.4609,
+        "mean": 38.4606,
+        "min": 38.4603,
+        "n": 4,
+        "std": 0.00034641016151707046
+      },
+      "timediff_std_ms": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      }
+    },
+    "first_seen": "2026-03-20 15:29:40",
+    "known_field_keys": [
+      "disk_free_gb",
+      "applied_tdi_modes",
+      "applied_tdi_stages",
+      "applied_tdiyshift",
+      "applied_fps",
+      "applied_exposuretime",
+      "applied_gain",
+      "applied_bandxshift",
+      "applied_width",
+      "applied_regionheight",
+      "applied_height",
+      "g_tdiyshift",
+      "file_size_bytes",
+      "frame_size_bytes",
+      "band_height",
+      "sensor_temp_before",
+      "sensor_temp_after",
+      "core_temp_before",
+      "fps_mean",
+      "fps_std",
+      "timediff_mean_ms",
+      "timediff_std_ms",
+      "grabber_connect_s",
+      "frames_expected",
+      "frames_captured",
+      "frame_drops",
+      "fps_requested",
+      "exposure_requested",
+      "gain_requested",
+      "duration_sec",
+      "tdi_byte",
+      "band_selection",
+      "tdi_yshift",
+      "sensor_temp_delta",
+      "core_temp_delta",
+      "meta_total_frames"
+    ],
+    "last_seen": "2026-03-20 15:49:58",
+    "mission_type": "low_fps_integration",
+    "sample_count": 4,
+    "structural_versions": [
+      "3ea11f650181"
+    ]
+  },
+  "no_tdi_full_frame": {
+    "fields": {
+      "applied_bandxshift": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 31,
+        "std": 0.0
+      },
+      "applied_exposuretime": {
+        "M2": 645387789.1362689,
+        "max": 19187.1,
+        "mean": 2494.714677419355,
+        "min": 11.866,
+        "n": 31,
+        "std": 4638.202917568646
+      },
+      "applied_fps": {
+        "M2": 6237.50828367742,
+        "max": 52.0,
+        "mean": 23.886451612903226,
+        "min": 13.114,
+        "n": 31,
+        "std": 14.419325323649764
+      },
+      "applied_framecount": {
+        "M2": 0.0,
+        "max": 227.0,
+        "mean": 227.0,
+        "min": 227.0,
+        "n": 2,
+        "std": 0.0
+      },
+      "applied_gain": {
+        "M2": 3.9354838709677424,
+        "max": 2.0,
+        "mean": 1.2580645161290327,
+        "min": 1.0,
+        "n": 31,
+        "std": 0.3621916560316164
+      },
+      "applied_height": {
+        "M2": 26392245.677419357,
+        "max": 2689.0,
+        "mean": 1871.451612903226,
+        "min": 673.0,
+        "n": 31,
+        "std": 937.9453729192577
+      },
+      "applied_regionheight": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 31,
+        "std": 0.0
+      },
+      "applied_tdi_modes": {
+        "M2": 28.193548387096776,
+        "max": 2.0,
+        "mean": 0.8387096774193546,
+        "min": 0.0,
+        "n": 31,
+        "std": 0.9694250596289324
+      },
+      "applied_tdi_stages": {
+        "M2": 148.77419354838707,
+        "max": 4.0,
+        "mean": 0.6774193548387097,
+        "min": -1.0,
+        "n": 31,
+        "std": 2.2269126127772134
+      },
+      "applied_tdiyshift": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 12,
+        "std": 0.0
+      },
+      "applied_width": {
+        "M2": 0.0,
+        "max": 8448.0,
+        "mean": 8448.0,
+        "min": 8448.0,
+        "n": 31,
+        "std": 0.0
+      },
+      "band_height": {
+        "M2": 506582.70967741945,
+        "max": 384.0,
+        "mean": 284.9032258064516,
+        "min": 96.0,
+        "n": 31,
+        "std": 129.94649022801903
+      },
+      "band_selection": {
+        "M2": 16181.999999999996,
+        "max": 127.0,
+        "mean": 121.00000000000001,
+        "min": 34.0,
+        "n": 31,
+        "std": 23.22498654466779
+      },
+      "core_temp_before": {
+        "M2": 10.774193548387101,
+        "max": 53.0,
+        "mean": 52.6774193548387,
+        "min": 51.0,
+        "n": 31,
+        "std": 0.5992827253861375
+      },
+      "core_temp_delta": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 31,
+        "std": 0.0
+      },
+      "disk_free_gb": {
+        "M2": 9677.462683870956,
+        "max": 1275.61,
+        "mean": 1261.618064516129,
+        "min": 1171.84,
+        "n": 31,
+        "std": 17.96057041027275
+      },
+      "duration_sec": {
+        "M2": 26773.74193548387,
+        "max": 127.0,
+        "mean": 17.483870967741932,
+        "min": 4.0,
+        "n": 31,
+        "std": 29.87403662908863
+      },
+      "exposure_requested": {
+        "M2": 2697172579.935483,
+        "max": 29000.0,
+        "mean": 4979.741935483872,
+        "min": 1.0,
+        "n": 31,
+        "std": 9481.86440867597
+      },
+      "file_size_bytes": {
+        "M2": 1.7103937266155582e+20,
+        "max": 7439710080.0,
+        "mean": 3347090787.0967746,
+        "min": 1471124160.0,
+        "n": 31,
+        "std": 2387742117.995966
+      },
+      "fps": {
+        "M2": 1891.0980295839995,
+        "max": 48.1489,
+        "mean": 20.64546,
+        "min": 13.7696,
+        "n": 10,
+        "std": 14.4955856482969
+      },
+      "fps_mean": {
+        "M2": 60912.52605647938,
+        "max": 195.1325,
+        "mean": 33.41722580645161,
+        "min": 13.1446,
+        "n": 31,
+        "std": 45.06015462929504
+      },
+      "fps_requested": {
+        "M2": 101972.83836154839,
+        "max": 250.0,
+        "mean": 36.96858064516128,
+        "min": 13.114,
+        "n": 31,
+        "std": 58.30175479393063
+      },
+      "fps_std": {
+        "M2": 0.9211013767741936,
+        "max": 0.723,
+        "mean": 0.07104516129032258,
+        "min": 0.004,
+        "n": 31,
+        "std": 0.17522379754418763
+      },
+      "frame_drops": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 31,
+        "std": 0.0
+      },
+      "frame_size_bytes": {
+        "M2": 2943094327573471.0,
+        "max": 28395840.0,
+        "mean": 19762529.032258064,
+        "min": 7106880.0,
+        "n": 31,
+        "std": 9904703.13802736
+      },
+      "frames_captured": {
+        "M2": 232210.7741935484,
+        "max": 262.0,
+        "mean": 190.32258064516125,
+        "min": 55.0,
+        "n": 31,
+        "std": 87.97931086218479
+      },
+      "frames_expected": {
+        "M2": 232210.7741935484,
+        "max": 262.0,
+        "mean": 190.32258064516125,
+        "min": 55.0,
+        "n": 31,
+        "std": 87.97931086218479
+      },
+      "g_tdiyshift": {
+        "M2": 146967.87096774194,
+        "max": 192.0,
+        "mean": 48.935483870967744,
+        "min": -1.0,
+        "n": 31,
+        "std": 69.99234981237639
+      },
+      "gain_requested": {
+        "M2": 3.9354838709677424,
+        "max": 2.0,
+        "mean": 1.2580645161290327,
+        "min": 1.0,
+        "n": 31,
+        "std": 0.3621916560316164
+      },
+      "grabber_connect_s": {
+        "M2": 0.008512294314387095,
+        "max": 0.709665,
+        "mean": 0.6641297096774194,
+        "min": 0.644881,
+        "n": 31,
+        "std": 0.016844677017173796
+      },
+      "meta_total_frames": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 31,
+        "std": 0.0
+      },
+      "sensor_temp_after": {
+        "M2": 9082.912941935487,
+        "max": 50.29,
+        "mean": 33.60225806451613,
+        "min": 14.29,
+        "n": 31,
+        "std": 17.40010818159424
+      },
+      "sensor_temp_before": {
+        "M2": 9066.536735483875,
+        "max": 50.37,
+        "mean": 33.56612903225806,
+        "min": 14.29,
+        "n": 31,
+        "std": 17.384415180925583
+      },
+      "sensor_temp_delta": {
+        "M2": 0.07918709677419355,
+        "max": 0.16,
+        "mean": 0.06064516129032259,
+        "min": 0.0,
+        "n": 31,
+        "std": 0.05137674466597819
+      },
+      "tdi_byte": {
+        "M2": 20034.387096774193,
+        "max": 105.0,
+        "mean": 12.70967741935484,
+        "min": 0.0,
+        "n": 31,
+        "std": 25.84207621739798
+      },
+      "tdi_yshift": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 31,
+        "std": 0.0
+      },
+      "timediff_mean_ms": {
+        "M2": 16191.78231942194,
+        "max": 76.2491,
+        "mean": 54.62321612903226,
+        "min": 19.2304,
+        "n": 31,
+        "std": 23.232005451834432
+      },
+      "timediff_std_ms": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 31,
+        "std": 0.0
+      }
+    },
+    "first_seen": "2026-03-20 15:29:37",
+    "known_field_keys": [
+      "disk_free_gb",
+      "applied_tdi_modes",
+      "applied_framecount",
+      "fps",
+      "applied_fps",
+      "applied_exposuretime",
+      "applied_gain",
+      "applied_bandxshift",
+      "applied_width",
+      "applied_regionheight",
+      "applied_height",
+      "applied_tdi_stages",
+      "g_tdiyshift",
+      "file_size_bytes",
+      "frame_size_bytes",
+      "band_height",
+      "sensor_temp_before",
+      "sensor_temp_after",
+      "core_temp_before",
+      "fps_mean",
+      "fps_std",
+      "timediff_mean_ms",
+      "timediff_std_ms",
+      "grabber_connect_s",
+      "frames_expected",
+      "frames_captured",
+      "frame_drops",
+      "fps_requested",
+      "exposure_requested",
+      "gain_requested",
+      "duration_sec",
+      "tdi_byte",
+      "band_selection",
+      "tdi_yshift",
+      "sensor_temp_delta",
+      "core_temp_delta",
+      "meta_total_frames",
+      "applied_tdiyshift"
+    ],
+    "last_seen": "2026-03-31 19:01:20",
+    "mission_type": "no_tdi_full_frame",
+    "sample_count": 31,
+    "structural_versions": [
+      "6121bd16fa34",
+      "3ea11f650181",
+      "041610320f9d",
+      "a7e4eab4cb87"
+    ],
+    "structure_evolved": true
+  },
+  "tdi_standard": {
+    "fields": {
+      "applied_bandxshift": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 57,
+        "std": 0.0
+      },
+      "applied_exposuretime": {
+        "M2": 3569102142.6546454,
+        "max": 28999.7,
+        "mean": 7153.059122807018,
+        "min": 249.493,
+        "n": 57,
+        "std": 7983.355612342386
+      },
+      "applied_fps": {
+        "M2": 45133.273666877205,
+        "max": 105.0,
+        "mean": 53.90519298245615,
+        "min": 14.0,
+        "n": 57,
+        "std": 28.38928170066918
+      },
+      "applied_gain": {
+        "M2": 3.842105263157895,
+        "max": 2.0,
+        "mean": 1.0526315789473681,
+        "min": 0.5,
+        "n": 57,
+        "std": 0.26193324064805323
+      },
+      "applied_height": {
+        "M2": 20528478.315789472,
+        "max": 1921.0,
+        "mean": 639.3157894736843,
+        "min": 193.0,
+        "n": 57,
+        "std": 605.4584791088585
+      },
+      "applied_regionheight": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 57,
+        "std": 0.0
+      },
+      "applied_tdi_modes": {
+        "M2": 27.50877192982456,
+        "max": 2.0,
+        "mean": 1.7192982456140349,
+        "min": 0.0,
+        "n": 57,
+        "std": 0.7008766440504625
+      },
+      "applied_tdi_stages": {
+        "M2": 640.1403508771932,
+        "max": 8.0,
+        "mean": 5.1228070175438605,
+        "min": -1.0,
+        "n": 57,
+        "std": 3.3809876802845045
+      },
+      "applied_tdiyshift": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 49,
+        "std": 0.0
+      },
+      "applied_width": {
+        "M2": 0.0,
+        "max": 8448.0,
+        "mean": 8448.0,
+        "min": 8448.0,
+        "n": 57,
+        "std": 0.0
+      },
+      "band_height": {
+        "M2": 759673.2631578947,
+        "max": 384.0,
+        "mean": 124.6315789473684,
+        "min": 48.0,
+        "n": 57,
+        "std": 116.47142990863642
+      },
+      "band_selection": {
+        "M2": 76678.2456140351,
+        "max": 127.0,
+        "mean": 47.491228070175445,
+        "min": 30.0,
+        "n": 57,
+        "std": 37.0034374884944
+      },
+      "core_temp_before": {
+        "M2": 651.0526315789468,
+        "max": 53.0,
+        "mean": 46.26315789473684,
+        "min": 38.0,
+        "n": 57,
+        "std": 3.4096832476967784
+      },
+      "core_temp_delta": {
+        "M2": 17160538653756.1,
+        "max": 4193990.0,
+        "mean": 102292.43902439026,
+        "min": 0.0,
+        "n": 41,
+        "std": 654991.1956231949
+      },
+      "disk_free_gb": {
+        "M2": 7564434.405557898,
+        "max": 1271.92,
+        "mean": 211.55157894736843,
+        "min": 50.32,
+        "n": 57,
+        "std": 367.5312038637453
+      },
+      "duration_sec": {
+        "M2": 693.7192982456145,
+        "max": 20.0,
+        "mean": 7.070175438596497,
+        "min": 3.0,
+        "n": 57,
+        "std": 3.5196369999658814
+      },
+      "exposure_requested": {
+        "M2": 5818057792.982456,
+        "max": 29000.0,
+        "mean": 9852.982456140353,
+        "min": 250.0,
+        "n": 57,
+        "std": 10192.835187542325
+      },
+      "file_size_bytes": {
+        "M2": 5.125838491020904e+19,
+        "max": 5384121600.0,
+        "mean": 1494145701.0526311,
+        "min": 807618240.0,
+        "n": 57,
+        "std": 956727914.2828532
+      },
+      "fps_mean": {
+        "M2": 45335.506584201394,
+        "max": 105.2391,
+        "mean": 54.01988771929824,
+        "min": 14.0326,
+        "n": 57,
+        "std": 28.45281387798094
+      },
+      "fps_requested": {
+        "M2": 45172.56140350878,
+        "max": 105.0,
+        "mean": 53.91228070175439,
+        "min": 14.0,
+        "n": 57,
+        "std": 28.401635203021566
+      },
+      "fps_std": {
+        "M2": 0.14514396140350877,
+        "max": 0.1821,
+        "mean": 0.025612280701754385,
+        "min": 0.0009,
+        "n": 57,
+        "std": 0.05091027846745768
+      },
+      "frame_drops": {
+        "M2": 15106.245614035086,
+        "max": 124.0,
+        "mean": 2.175438596491227,
+        "min": 0.0,
+        "n": 57,
+        "std": 16.42420122760654
+      },
+      "frame_size_bytes": {
+        "M2": 2289204519515620.5,
+        "max": 20285760.0,
+        "mean": 6751174.736842106,
+        "min": 2038080.0,
+        "n": 57,
+        "std": 6393641.539389545
+      },
+      "frames_captured": {
+        "M2": 5073159.894736847,
+        "max": 1060.0,
+        "mean": 402.5789473684212,
+        "min": 16.0,
+        "n": 57,
+        "std": 300.98528365593506
+      },
+      "frames_expected": {
+        "M2": 4992394.561403512,
+        "max": 1060.0,
+        "mean": 404.7543859649125,
+        "min": 42.0,
+        "n": 57,
+        "std": 298.5798099038272
+      },
+      "g_tdiyshift": {
+        "M2": 181335.71929824565,
+        "max": 192.0,
+        "mean": 70.59649122807016,
+        "min": -1.0,
+        "n": 57,
+        "std": 56.90463816431425
+      },
+      "gain_requested": {
+        "M2": 3.842105263157895,
+        "max": 2.0,
+        "mean": 1.0526315789473681,
+        "min": 0.5,
+        "n": 57,
+        "std": 0.26193324064805323
+      },
+      "grabber_connect_s": {
+        "M2": 2.034806305706562,
+        "max": 0.950674,
+        "mean": 0.7476350877192982,
+        "min": 0.514162,
+        "n": 57,
+        "std": 0.19061958684148167
+      },
+      "meta_bands_used": {
+        "M2": 0.0,
+        "max": 4.0,
+        "mean": 4.0,
+        "min": 4.0,
+        "n": 20,
+        "std": 0.0
+      },
+      "meta_core_temp_c": {
+        "M2": 0.0,
+        "max": 44.0,
+        "mean": 44.0,
+        "min": 44.0,
+        "n": 20,
+        "std": 0.0
+      },
+      "meta_lat_range": {
+        "M2": 0.0,
+        "max": 2.5903,
+        "mean": 2.5903,
+        "min": 2.5903,
+        "n": 20,
+        "std": 0.0
+      },
+      "meta_lon_range": {
+        "M2": 0.0,
+        "max": 4.0342,
+        "mean": 4.0342,
+        "min": 4.0342,
+        "n": 20,
+        "std": 0.0
+      },
+      "meta_sensor_temp_c": {
+        "M2": 0.0,
+        "max": 46.62,
+        "mean": 46.62,
+        "min": 46.62,
+        "n": 20,
+        "std": 0.0
+      },
+      "meta_tdi_mode": {
+        "M2": 0.0,
+        "max": 2.0,
+        "mean": 2.0,
+        "min": 2.0,
+        "n": 20,
+        "std": 0.0
+      },
+      "meta_tdi_stages": {
+        "M2": 0.0,
+        "max": 8.0,
+        "mean": 8.0,
+        "min": 8.0,
+        "n": 20,
+        "std": 0.0
+      },
+      "meta_total_frames": {
+        "M2": 4056770.8771929834,
+        "max": 559.0,
+        "mean": 196.14035087719304,
+        "min": 0.0,
+        "n": 57,
+        "std": 269.1511417265991
+      },
+      "ram": {
+        "M2": 0.0,
+        "max": 1086.51,
+        "mean": 1086.51,
+        "min": 1086.51,
+        "n": 20,
+        "std": 0.0
+      },
+      "ram_available_gb": {
+        "M2": 0.0,
+        "max": 50637.7,
+        "mean": 50637.7,
+        "min": 50637.7,
+        "n": 20,
+        "std": 0.0
+      },
+      "sensor_temp_after": {
+        "M2": 350687399494.3374,
+        "max": 159221.59,
+        "mean": 66932.00435087722,
+        "min": 0.0,
+        "n": 57,
+        "std": 79134.53728284706
+      },
+      "sensor_temp_before": {
+        "M2": 3607.3753929824547,
+        "max": 48.61,
+        "mean": 43.08701754385962,
+        "min": 14.74,
+        "n": 57,
+        "std": 8.026046207930126
+      },
+      "sensor_temp_delta": {
+        "M2": 251135707754.76245,
+        "max": 159176.49,
+        "mean": 92994.17073170733,
+        "min": 0.0,
+        "n": 41,
+        "std": 79236.30918883755
+      },
+      "status": {
+        "M2": 0.0,
+        "max": 12288.0,
+        "mean": 12288.0,
+        "min": 12288.0,
+        "n": 31,
+        "std": 0.0
+      },
+      "tdi_byte": {
+        "M2": 9486.035087719303,
+        "max": 34.0,
+        "mean": 22.7719298245614,
+        "min": 0.0,
+        "n": 57,
+        "std": 13.015125189919353
+      },
+      "tdi_yshift": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 57,
+        "std": 0.0
+      },
+      "timediff_mean_ms": {
+        "M2": 22290.633967385616,
+        "max": 71.4237,
+        "mean": 27.000575438596492,
+        "min": 9.5237,
+        "n": 57,
+        "std": 19.95111613749682
+      },
+      "timediff_std_ms": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 57,
+        "std": 0.0
+      },
+      "to": {
+        "M2": 0.0,
+        "max": 80.0,
+        "mean": 80.0,
+        "min": 80.0,
+        "n": 31,
+        "std": 0.0
+      }
+    },
+    "first_seen": "2026-03-18 17:25:18",
+    "known_field_keys": [
+      "disk_free_gb",
+      "ram_available_gb",
+      "applied_tdi_modes",
+      "applied_tdi_stages",
+      "applied_tdiyshift",
+      "applied_fps",
+      "applied_exposuretime",
+      "applied_gain",
+      "applied_bandxshift",
+      "applied_width",
+      "applied_regionheight",
+      "applied_height",
+      "g_tdiyshift",
+      "file_size_bytes",
+      "frame_size_bytes",
+      "ram",
+      "band_height",
+      "sensor_temp_before",
+      "sensor_temp_after",
+      "core_temp_before",
+      "fps_mean",
+      "fps_std",
+      "timediff_mean_ms",
+      "timediff_std_ms",
+      "grabber_connect_s",
+      "frames_expected",
+      "frames_captured",
+      "frame_drops",
+      "fps_requested",
+      "exposure_requested",
+      "gain_requested",
+      "duration_sec",
+      "tdi_byte",
+      "band_selection",
+      "tdi_yshift",
+      "meta_bands_used",
+      "meta_sensor_temp_c",
+      "meta_core_temp_c",
+      "meta_tdi_mode",
+      "meta_tdi_stages",
+      "meta_total_frames",
+      "meta_lat_range",
+      "meta_lon_range",
+      "sensor_temp_delta",
+      "core_temp_delta",
+      "to",
+      "status"
+    ],
+    "last_seen": "2026-03-31 16:35:09",
+    "mission_type": "tdi_standard",
+    "sample_count": 57,
+    "structural_versions": [
+      "3a0bc755c96a",
+      "3ea11f650181",
+      "6c68c956bdac",
+      "f85a26c8c4e9",
+      "7eff29c5d9ac"
+    ],
+    "structure_evolved": true
+  },
+  "test_pattern_calibration": {
+    "fields": {
+      "applied_bandxshift": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_exposuretime": {
+        "M2": 5107105.94475675,
+        "max": 2899.47,
+        "mean": 942.3472499999999,
+        "min": 289.973,
+        "n": 4,
+        "std": 1304.7485
+      },
+      "applied_fps": {
+        "M2": 124.536747,
+        "max": 26.0,
+        "mean": 16.335500000000003,
+        "min": 13.114,
+        "n": 4,
+        "std": 6.4430000000000005
+      },
+      "applied_gain": {
+        "M2": 0.18750000000000003,
+        "max": 1.5,
+        "mean": 1.125,
+        "min": 1.0,
+        "n": 4,
+        "std": 0.25
+      },
+      "applied_height": {
+        "M2": 3048192.0,
+        "max": 2689.0,
+        "mean": 2185.0,
+        "min": 673.0,
+        "n": 4,
+        "std": 1008.0
+      },
+      "applied_regionheight": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "applied_tdi_modes": {
+        "M2": 3.0000000000000004,
+        "max": 2.0,
+        "mean": 0.5,
+        "min": 0.0,
+        "n": 4,
+        "std": 1.0
+      },
+      "applied_tdi_stages": {
+        "M2": 18.749999999999996,
+        "max": 4.0,
+        "mean": 0.25,
+        "min": -1.0,
+        "n": 4,
+        "std": 2.5
+      },
+      "applied_tdiyshift": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 1,
+        "std": 0.0
+      },
+      "applied_width": {
+        "M2": 0.0,
+        "max": 8448.0,
+        "mean": 8448.0,
+        "min": 8448.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "band_height": {
+        "M2": 62208.0,
+        "max": 384.0,
+        "mean": 312.0,
+        "min": 96.0,
+        "n": 4,
+        "std": 144.0
+      },
+      "band_selection": {
+        "M2": 0.0,
+        "max": 127.0,
+        "mean": 127.0,
+        "min": 127.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "core_temp_before": {
+        "M2": 1.0,
+        "max": 49.0,
+        "mean": 48.5,
+        "min": 48.0,
+        "n": 4,
+        "std": 0.5773502691896257
+      },
+      "core_temp_delta": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "disk_free_gb": {
+        "M2": 0.002075000000000436,
+        "max": 52.21,
+        "mean": 52.182500000000005,
+        "min": 52.16,
+        "n": 4,
+        "std": 0.026299556396768595
+      },
+      "duration_sec": {
+        "M2": 75.0,
+        "max": 20.0,
+        "mean": 12.5,
+        "min": 10.0,
+        "n": 4,
+        "std": 5.0
+      },
+      "exposure_requested": {
+        "M2": 5109075.0,
+        "max": 2900.0,
+        "mean": 942.5,
+        "min": 290.0,
+        "n": 4,
+        "std": 1305.0
+      },
+      "file_size_bytes": {
+        "M2": 1.648837266320978e+19,
+        "max": 7439710080.0,
+        "mean": 4181802240.0,
+        "min": 1847788800.0,
+        "n": 4,
+        "std": 2344381415.4420195
+      },
+      "fps_mean": {
+        "M2": 125.10179327999997,
+        "max": 26.0597,
+        "mean": 16.3733,
+        "min": 13.1445,
+        "n": 4,
+        "std": 6.457599999999999
+      },
+      "fps_requested": {
+        "M2": 124.536747,
+        "max": 26.0,
+        "mean": 16.335500000000003,
+        "min": 13.114,
+        "n": 4,
+        "std": 6.4430000000000005
+      },
+      "fps_std": {
+        "M2": 4.207499999999999e-06,
+        "max": 0.0056,
+        "mean": 0.003825,
+        "min": 0.0032,
+        "n": 4,
+        "std": 0.001184271928232701
+      },
+      "frame_drops": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "frame_size_bytes": {
+        "M2": 339914863411200.0,
+        "max": 28395840.0,
+        "mean": 23073600.0,
+        "min": 7106880.0,
+        "n": 4,
+        "std": 10644480.0
+      },
+      "frames_captured": {
+        "M2": 16902.0,
+        "max": 262.0,
+        "mean": 196.0,
+        "min": 131.0,
+        "n": 4,
+        "std": 75.05997601918082
+      },
+      "frames_expected": {
+        "M2": 16902.0,
+        "max": 262.0,
+        "mean": 196.0,
+        "min": 131.0,
+        "n": 4,
+        "std": 75.05997601918082
+      },
+      "g_tdiyshift": {
+        "M2": 7056.749999999999,
+        "max": 96.0,
+        "mean": 23.25,
+        "min": -1.0,
+        "n": 4,
+        "std": 48.49999999999999
+      },
+      "gain_requested": {
+        "M2": 0.18750000000000003,
+        "max": 1.5,
+        "mean": 1.125,
+        "min": 1.0,
+        "n": 4,
+        "std": 0.25
+      },
+      "grabber_connect_s": {
+        "M2": 6.178361074999925e-05,
+        "max": 0.907727,
+        "mean": 0.9009547499999999,
+        "min": 0.898048,
+        "n": 4,
+        "std": 0.004538120416721709
+      },
+      "meta_total_frames": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "sensor_temp_after": {
+        "M2": 27438.169275000706,
+        "max": 159107.09,
+        "mean": 159059.23249999998,
+        "min": 158915.78,
+        "n": 4,
+        "std": 95.63501673027633
+      },
+      "sensor_temp_before": {
+        "M2": 0.28147500000000186,
+        "max": 45.1,
+        "mean": 44.847500000000004,
+        "min": 44.48,
+        "n": 4,
+        "std": 0.30630866784993305
+      },
+      "sensor_temp_delta": {
+        "M2": 27297.804900001523,
+        "max": 159062.26,
+        "mean": 159014.385,
+        "min": 158871.3,
+        "n": 4,
+        "std": 95.39008491452614
+      },
+      "status": {
+        "M2": 0.0,
+        "max": 12288.0,
+        "mean": 12288.0,
+        "min": 12288.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "tdi_byte": {
+        "M2": 243.0,
+        "max": 18.0,
+        "mean": 4.5,
+        "min": 0.0,
+        "n": 4,
+        "std": 9.0
+      },
+      "tdi_yshift": {
+        "M2": 0.0,
+        "max": 384.0,
+        "mean": 384.0,
+        "min": 384.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "timediff_mean_ms": {
+        "M2": 1071.00639075,
+        "max": 76.2491,
+        "mean": 66.80185,
+        "min": 38.4601,
+        "n": 4,
+        "std": 18.8945
+      },
+      "timediff_std_ms": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "to": {
+        "M2": 0.0,
+        "max": 80.0,
+        "mean": 80.0,
+        "min": 80.0,
+        "n": 4,
+        "std": 0.0
+      }
+    },
+    "first_seen": "2026-03-27 14:33:14",
+    "known_field_keys": [
+      "to",
+      "disk_free_gb",
+      "applied_tdi_modes",
+      "applied_fps",
+      "applied_exposuretime",
+      "applied_gain",
+      "applied_bandxshift",
+      "applied_width",
+      "applied_regionheight",
+      "applied_height",
+      "applied_tdi_stages",
+      "g_tdiyshift",
+      "file_size_bytes",
+      "frame_size_bytes",
+      "band_height",
+      "status",
+      "sensor_temp_before",
+      "sensor_temp_after",
+      "core_temp_before",
+      "fps_mean",
+      "fps_std",
+      "timediff_mean_ms",
+      "timediff_std_ms",
+      "grabber_connect_s",
+      "frames_expected",
+      "frames_captured",
+      "frame_drops",
+      "fps_requested",
+      "exposure_requested",
+      "gain_requested",
+      "duration_sec",
+      "tdi_byte",
+      "band_selection",
+      "tdi_yshift",
+      "sensor_temp_delta",
+      "core_temp_delta",
+      "meta_total_frames",
+      "applied_tdiyshift"
+    ],
+    "last_seen": "2026-03-27 17:14:23",
+    "mission_type": "test_pattern_calibration",
+    "sample_count": 4,
+    "structural_versions": [
+      "7eff29c5d9ac",
+      "f85a26c8c4e9"
+    ],
+    "structure_evolved": true
+  },
+  "unknown": {
+    "fields": {
+      "band_selection": {
+        "M2": 6144.0,
+        "max": 127.0,
+        "mean": 95.0,
+        "min": 31.0,
+        "n": 3,
+        "std": 55.42562584220407
+      },
+      "core_temp_before": {
+        "M2": 6.0,
+        "max": 45.0,
+        "mean": 43.0,
+        "min": 42.0,
+        "n": 3,
+        "std": 1.7320508075688772
+      },
+      "core_temp_delta": {
+        "M2": 2.6666666666666674,
+        "max": 2.7,
+        "mean": 2.033333333333333,
+        "min": 0.7,
+        "n": 3,
+        "std": 1.1547005383792517
+      },
+      "duration_sec": {
+        "M2": 0.6666666666666667,
+        "max": 4.0,
+        "mean": 3.3333333333333335,
+        "min": 3.0,
+        "n": 3,
+        "std": 0.5773502691896258
+      },
+      "exposure_requested": {
+        "M2": 5444.972407176032,
+        "max": 290.0,
+        "mean": 229.75067133333332,
+        "min": 199.626007,
+        "n": 3,
+        "std": 52.17744918629135
+      },
+      "fps_requested": {
+        "M2": 0.0,
+        "max": 105.0,
+        "mean": 105.0,
+        "min": 105.0,
+        "n": 3,
+        "std": 0.0
+      },
+      "frame_drops": {
+        "M2": 0.0,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "n": 4,
+        "std": 0.0
+      },
+      "frames_captured": {
+        "M2": 29120.666666666664,
+        "max": 212.0,
+        "mean": 72.66666666666666,
+        "min": 3.0,
+        "n": 3,
+        "std": 120.66620626063178
+      },
+      "frames_expected": {
+        "M2": 29120.666666666664,
+        "max": 212.0,
+        "mean": 72.66666666666666,
+        "min": 3.0,
+        "n": 3,
+        "std": 120.66620626063178
+      },
+      "gain_requested": {
+        "M2": 0.0,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0,
+        "n": 3,
+        "std": 0.0
+      },
+      "sensor_temp_after": {
+        "M2": 4.506666666666684,
+        "max": 43.11,
+        "mean": 41.376666666666665,
+        "min": 40.51,
+        "n": 3,
+        "std": 1.50111069989303
+      },
+      "sensor_temp_before": {
+        "M2": 0.6534000000000096,
+        "max": 43.49,
+        "mean": 42.830000000000005,
+        "min": 42.5,
+        "n": 3,
+        "std": 0.5715767664977337
+      },
+      "sensor_temp_delta": {
+        "M2": 1.7280666666666664,
+        "max": 1.99,
+        "mean": 1.4533333333333334,
+        "min": 0.38,
+        "n": 3,
+        "std": 0.9295339333952974
+      },
+      "tdi_byte": {
+        "M2": 0.0,
+        "max": 34.0,
+        "mean": 34.0,
+        "min": 34.0,
+        "n": 3,
+        "std": 0.0
+      },
+      "tdi_yshift": {
+        "M2": 75264.0,
+        "max": 384.0,
+        "mean": 160.0,
+        "min": 48.0,
+        "n": 3,
+        "std": 193.98969044771425
+      }
+    },
+    "first_seen": "2026-03-30 13:26:19",
+    "known_field_keys": [
+      "frames_expected",
+      "frames_captured",
+      "frame_drops",
+      "fps_requested",
+      "exposure_requested",
+      "gain_requested",
+      "duration_sec",
+      "tdi_byte",
+      "band_selection",
+      "tdi_yshift",
+      "sensor_temp_before",
+      "sensor_temp_after",
+      "sensor_temp_delta",
+      "core_temp_before",
+      "core_temp_delta"
+    ],
+    "last_seen": "2026-04-14 14:25:46",
+    "mission_type": "unknown",
+    "sample_count": 4,
+    "structural_versions": [
+      "40abf32d2742",
+      "cb98cbbd163d"
+    ],
+    "structure_evolved": true
+  }
+}

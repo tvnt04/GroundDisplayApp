@@ -1,0 +1,16 @@
+numpy
+Pillow
+psutil
+PyQt5
+pyqtgraph
+opencv-python
+google-generativeai
+PyOpenGL
+pyinstaller
+supabase>=2.0.0
+openai>=1.0.0
+PyPDF2>=3.0.0
+python-docx>=1.0.0
+openpyxl>=3.1.0
+tiktoken>=0.5.0
+anthropic

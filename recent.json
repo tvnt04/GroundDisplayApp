@@ -1,0 +1,512 @@
+[
+  {
+    "path": "/home/xdlinx/S2_Downloads/S2_wv3_7band_40.7127N_74.0060W_2024-10-18_8448x3840_band",
+    "mode": "band",
+    "last_opened": "2026-04-14T09:38:45.597692",
+    "meta": {
+      "param_hash": "3f4805cced1c7f1ce58fbc789407768a",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/S2_Downloads/S2_wv3_7band_1.2899N_103.8519E_2019-02-25_8448x3840_band",
+    "mode": "band",
+    "last_opened": "2026-04-14T08:54:31.817823",
+    "meta": {
+      "param_hash": "3f4805cced1c7f1ce58fbc789407768a",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Music/outbound/DecodeSoftware/Acq000000_26361701042026",
+    "mode": "band",
+    "last_opened": "2026-04-13T08:36:49.188333",
+    "meta": {
+      "param_hash": "ef4a0ce9402ea79c5902b3a8ae8b743b",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Capture/Acq000002_11521004052026_12bit",
+    "mode": "band",
+    "last_opened": "2026-04-10T10:02:30.121435",
+    "meta": {
+      "param_hash": "918bbed6a98975a5a863dd922c3666b5",
+      "params": {
+        "width": 8448,
+        "height": 96,
+        "raw_height": 384,
+        "bit_depth": 12,
+        "tdi_stage": 4
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Music/outbound/DecodeSoftware/Acq000000_51112030032026",
+    "mode": "band",
+    "last_opened": "2026-04-10T09:20:23.060250",
+    "meta": {
+      "param_hash": "ef4a0ce9402ea79c5902b3a8ae8b743b",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/Acq000000_31001214112025_processed_8bit",
+    "mode": "band",
+    "last_opened": "2026-04-09T15:42:40.774114",
+    "meta": {
+      "param_hash": "56c2fa74f835ff4ccab6c05bd4bccceb",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 8,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/Acq000000_31001214112025_processed",
+    "mode": "band",
+    "last_opened": "2026-04-09T15:37:15.303261",
+    "meta": {
+      "param_hash": "aab033ba5bc8fd5ad2abaccacc083ec4",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 12,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/outbound/DecodeSoftware/Acq000001_55090731032026/packed12",
+    "mode": "band",
+    "last_opened": "2026-04-06T15:15:24.239287",
+    "meta": {
+      "param_hash": "49e39e34a4dbb2b4fc882a31d965d0be",
+      "params": {
+        "width": 8448,
+        "height": 192,
+        "raw_height": 384,
+        "bit_depth": 12,
+        "tdi_stage": 2
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Music/outbound/DecodeSoftware",
+    "mode": "band",
+    "last_opened": "2026-04-04T12:13:56.844814",
+    "meta": {
+      "param_hash": "3f4805cced1c7f1ce58fbc789407768a",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/Capture/Acq000067_19262104052026",
+    "mode": "band",
+    "last_opened": "2026-04-04T11:08:00.835394",
+    "meta": {
+      "param_hash": "2c42211f6ff9b7e35992957216827e5b",
+      "params": {
+        "width": 8448,
+        "height": 96,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 4
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/Acq000000_25341603032026",
+    "mode": "band",
+    "last_opened": "2026-04-04T11:07:41.551981",
+    "meta": {
+      "param_hash": "3f4805cced1c7f1ce58fbc789407768a",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/color_bands/Acq000000_33001214112026",
+    "mode": "band",
+    "last_opened": "2026-04-04T11:06:35.878500",
+    "meta": {
+      "param_hash": "3f4805cced1c7f1ce58fbc789407768a",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/Capture/Acq000008_48322104052026",
+    "mode": "band",
+    "last_opened": "2026-04-04T11:03:28.066222",
+    "meta": {
+      "param_hash": "2c42211f6ff9b7e35992957216827e5b",
+      "params": {
+        "width": 8448,
+        "height": 96,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 4
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Music/outbound/DecodeSoftware/Acq000000_28321403042026",
+    "mode": "band",
+    "last_opened": "2026-04-04T11:02:49.050877",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Capture/Acq000067_00191204052026",
+    "mode": "band",
+    "last_opened": "2026-04-04T10:51:57.200491",
+    "meta": {
+      "param_hash": "2c42211f6ff9b7e35992957216827e5b",
+      "params": {
+        "width": 8448,
+        "height": 96,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 4
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Capture/Acq000007_11151104052026",
+    "mode": "band",
+    "last_opened": "2026-04-04T10:51:38.636966",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Capture/Acq000003_11541004052026",
+    "mode": "band",
+    "last_opened": "2026-04-04T10:51:24.955604",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Music/outbound/DecodeSoftware/Acq000000_07181503042026",
+    "mode": "band",
+    "last_opened": "2026-04-04T10:50:37.435401",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Music/outbound/DecodeSoftware/Acq000000_03111503042026",
+    "mode": "band",
+    "last_opened": "2026-04-04T10:50:04.759847",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/Acq000000_31001214112025",
+    "mode": "band",
+    "last_opened": "2026-04-04T10:48:52.177389",
+    "meta": {
+      "param_hash": "3f4805cced1c7f1ce58fbc789407768a",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/PS1_MSI_final_outbound/DecodeSoftware/Acq000000_13072104052026",
+    "mode": "band",
+    "last_opened": "2026-04-04T10:48:29.025768",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/Acq000000_35351603032026",
+    "mode": "band",
+    "last_opened": "2026-04-04T09:35:46.697873",
+    "meta": {
+      "param_hash": "3f4805cced1c7f1ce58fbc789407768a",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/Acq000000_31001214112025_unpacked",
+    "mode": "band",
+    "last_opened": "2026-04-04T09:18:29.661676",
+    "meta": {
+      "param_hash": "b7ade1dffe3af5f4259521afba8a9286",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/DisplayGoundADV",
+    "mode": "band",
+    "last_opened": "2026-04-03T11:12:00.001587",
+    "meta": {
+      "param_hash": "3f4805cced1c7f1ce58fbc789407768a",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/PS1_MSI_final_outbound/DecodeSoftware/Acq000000_32201901042026",
+    "mode": "band",
+    "last_opened": "2026-04-03T11:01:16.439551",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Documents/Capture/Acq000064_30010731032026",
+    "mode": "band",
+    "last_opened": "2026-04-03T10:58:03.801728",
+    "meta": {
+      "param_hash": "3f4805cced1c7f1ce58fbc789407768a",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Documents/Capture/Acq000066_34020731032026/Acq000066_34020731032026_unpacked/unpacked",
+    "mode": "band",
+    "last_opened": "2026-04-03T10:47:39.558062",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Documents/Capture/Acq000066_34020731032026/Acq000066_34020731032026_unpacked",
+    "mode": "band",
+    "last_opened": "2026-04-03T10:46:54.208526",
+    "meta": {
+      "param_hash": "ef4a0ce9402ea79c5902b3a8ae8b743b",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/outbound/DecodeSoftware/Acq000066_34020731032026/Acq000066_34020731032026",
+    "mode": "band",
+    "last_opened": "2026-04-03T10:45:13.289930",
+    "meta": {
+      "param_hash": "ef4a0ce9402ea79c5902b3a8ae8b743b",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/outbound/DecodeSoftware/Acq000066_34020731032026",
+    "mode": "band",
+    "last_opened": "2026-04-03T10:44:57.622180",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/outbound/DecodeSoftware/Acq000064_30010731032026",
+    "mode": "band",
+    "last_opened": "2026-04-03T10:44:22.302662",
+    "meta": {
+      "param_hash": "b7ade1dffe3af5f4259521afba8a9286",
+      "params": {
+        "width": 8448,
+        "height": 384,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 0
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Documents/Capture/Acq000007_50140731032026",
+    "mode": "band",
+    "last_opened": "2026-04-03T10:43:15.660242",
+    "meta": {
+      "param_hash": "ef4a0ce9402ea79c5902b3a8ae8b743b",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/Capture/Acq000007_16322104052026",
+    "mode": "band",
+    "last_opened": "2026-04-03T10:42:44.023743",
+    "meta": {
+      "param_hash": "ef4a0ce9402ea79c5902b3a8ae8b743b",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 10,
+        "tdi_stage": 8
+      }
+    }
+  },
+  {
+    "path": "/home/xdlinx/Downloads/PS1_MSI_final_outbound/DecodeSoftware/Acq000000_35551801042026",
+    "mode": "band",
+    "last_opened": "2026-04-03T10:42:00.093591",
+    "meta": {
+      "param_hash": "6521bbc05d6c63c171aded70cb4c8096",
+      "params": {
+        "width": 8448,
+        "height": 48,
+        "raw_height": 384,
+        "bit_depth": 16,
+        "tdi_stage": 8
+      }
+    }
+  }
+]

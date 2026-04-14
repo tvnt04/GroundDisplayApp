@@ -1,0 +1,100 @@
+╔══════════════════════════════════════════════════════════════╗
+REPORT: Acq000002_49341509102025
+Folder: /home/xdlinx/Downloads/Capture/Acq000002_49341509102025
+Scan: full | Time: 2026-03-11 15:56:58
+Duration: 38.7s
+╚══════════════════════════════════════════════════════════════╝
+
+HEALTH: 85/100 🟡 PATTERNS NOTED
+Summary: 0 confirmed · 5 patterns · 3 info
+
+────────────────────────────────────────────────────────────
+1. PARAMETER FILE CHECK (14 items)
+────────────────────────────────────────────────────────────
+✅ [OK] All 14 parameters found and processed.
+
+Parameter values:
+[1] OrbitID = 1234
+[2] TaskID = 2
+[3] JsonID = 1
+[4] Date = 09.10.2025
+[5] UTC Time = 15:34:49.618
+[6] Duration = 2.0s
+[7] BandSelection = 127 (7 bands active)
+[8] TDI byte = 0 → OFF (N/A stages)
+[9] FPS = 13.114
+[10] ExposureTime = 2900.0µs
+[11] Gain = 1.0×
+[12] XShift = 0.0
+[13] Binning byte = 0 (CCSDS: OFF)
+[14] TDIYShift = 384
+
+────────────────────────────────────────────────────────────
+2. REQUESTED VS APPLIED
+────────────────────────────────────────────────────────────
+✅ [OK] FPS: requested 13.114 → applied 13.114
+✅ [OK] ExposureTime: requested 2900.0 → applied 2899.57
+✅ [OK] Gain: requested 1.0 → applied 1.0
+✅ [OK] BandXShift: requested 0.0 → applied 0.0
+✅ [OK] TDIYShift: requested 384 → applied 384.0
+✅ [OK] All requested parameters were applied correctly.
+⚪ [INFO] Binning argument was received (position 13 in parameter file) but the log does NOT contain an 'Applied Binning=' confirmation line. Binning value cannot be verified from the log. This is a log coverage gap — add a binning confirmation log line in firmware if binning verification is required.
+
+────────────────────────────────────────────────────────────
+3. FRAME COUNT
+────────────────────────────────────────────────────────────
+✅ [OK] No frame drops — 26/26 frames captured
+Frames in log: 26
+Frames expected: 26
+Frames captured: 26
+
+────────────────────────────────────────────────────────────
+4. TEMPERATURE
+────────────────────────────────────────────────────────────
+Sensor: 8.86°C → 8.94°C (Δ 0.1°C) [STABLE] But 8.86°C is suspiciously low for a sensor under load. Firmware 2.3.2 is known to report very low temperatures due to a bug. Treat temperature readings with caution.
+Core: 42.0°C → 42.0°C (Δ 0.0°C) [STABLE]
+✅ [OK] Temperatures stable.
+
+────────────────────────────────────────────────────────────
+5. TRIGGER TIMING
+────────────────────────────────────────────────────────────
+🟡 [WARNING] Stale trigger time — file: 2025-03-10 23:54:30.0 | system: 2025-10-09 15:34:44.618 | delta: 2,265 ms
+→ Time sync failed.
+→ Timing data is unreliable.
+→ Update the trigger time..
+
+────────────────────────────────────────────────────────────
+6. FPS STABILITY
+────────────────────────────────────────────────────────────
+✅ [OK] FPS stability: PERFECT — mean 12.6381 fps, std 2.5276, timing std 0.0 ms (26 frames)
+
+────────────────────────────────────────────────────────────
+7. BAND SUMMARY
+────────────────────────────────────────────────────────────
+OK b00: mean=523.8 DN · 26 frames · 0 flagged
+OK b01: mean=522.5 DN · 26 frames · 0 flagged
+OK b10: mean=518.2 DN · 26 frames · 0 flagged
+OK b11: mean=518.7 DN · 26 frames · 0 flagged
+OK b20: mean=521.3 DN · 26 frames · 0 flagged
+OK b21: mean=522.2 DN · 26 frames · 0 flagged
+OK b30: mean=522.5 DN · 26 frames · 0 flagged
+OK b31: mean=520.7 DN · 26 frames · 0 flagged
+OK b40: mean=518.7 DN · 26 frames · 0 flagged
+OK b41: mean=519.6 DN · 26 frames · 0 flagged
+OK b50: mean=522.2 DN · 26 frames · 0 flagged
+OK b51: mean=523.8 DN · 26 frames · 0 flagged
+OK b60: mean=520.7 DN · 26 frames · 0 flagged
+OK b61: mean=518.2 DN · 26 frames · 0 flagged
+
+
+────────────────────────────────────────────────────────────
+8. CAMERA SETUP
+────────────────────────────────────────────────────────────
+🟡 [WARNING] Camera settings ZIP path was invalid — default camera config was used. Custom calibration or factory settings may not have been applied.
+Firmware 2.3.2 detected — known issue: temperature values can report very low. Treat temperature readings with caution.
+
+══════════════════════════════════════════════════════════════
+END — Acq000002_49341509102025 | Health: 85/100
+══════════════════════════════════════════════════════════════
+
+

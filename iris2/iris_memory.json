@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "settings": {
+    "report_mode": "local",
+    "assist_mode": "smart"
+  },
+  "last_active_dataset": {
+    "path": "/home/xdlinx/S2_Downloads/S2_wv3_7band_40.7127N_74.0060W_2024-10-18_8448x3840_band",
+    "name": "S2_wv3_7band_40.7127N_74.0060W_2024-10-18_8448x3840_band",
+    "last_opened": "2026-04-14 15:25:13"
+  },
+  "recent_datasets": [
+    {
+      "path": "/home/xdlinx/S2_Downloads/S2_wv3_7band_40.7127N_74.0060W_2024-10-18_8448x3840_band",
+      "name": "S2_wv3_7band_40.7127N_74.0060W_2024-10-18_8448x3840_band",
+      "last_opened": "2026-04-14 15:25:13"
+    },
+    {
+      "path": "/home/xdlinx/Music/outbound/DecodeSoftware/Acq000000_26361701042026",
+      "name": "Acq000000_26361701042026",
+      "last_opened": "2026-04-13 14:06:49"
+    },
+    {
+      "path": "/home/xdlinx/Capture/Acq000002_11521004052026_12bit",
+      "name": "Acq000002_11521004052026_12bit",
+      "last_opened": "2026-04-10 15:32:30"
+    },
+    {
+      "path": "/home/xdlinx/Downloads/Acq000000_31001214112025_processed_8bit",
+      "name": "Acq000000_31001214112025_processed_8bit",
+      "last_opened": "2026-04-09 21:12:41"
+    },
+    {
+      "path": "/home/xdlinx/Downloads/Acq000000_31001214112025_processed",
+      "name": "Acq000000_31001214112025_processed",
+      "last_opened": "2026-04-09 21:07:16"
+    },
+    {
+      "path": "/home/xdlinx/Downloads/outbound/DecodeSoftware/Acq000001_55090731032026/packed12",
+      "name": "packed12",
+      "last_opened": "2026-04-06 20:45:24"
+    },
+    {
+      "path": "/home/xdlinx/Downloads/Capture/Acq000067_19262104052026",
+      "name": "Acq000067_19262104052026",
+      "last_opened": "2026-04-04 16:38:01"
+    },
+    {
+      "path": "/home/xdlinx/Downloads/color_bands/Acq000000_33001214112026",
+      "name": "Acq000000_33001214112026",
+      "last_opened": "2026-04-04 16:36:36"
+    },
+    {
+      "path": "/home/xdlinx/Downloads/Capture/Acq000008_48322104052026",
+      "name": "Acq000008_48322104052026",
+      "last_opened": "2026-04-04 16:33:28"
+    }
+  ],
+  "last_actions": [
+    {
+      "ts": "2026-04-14 14:25:46",
+      "action": "scan",
+      "dataset": "",
+      "details": "started local scan"
+    },
+    {
+      "ts": "2026-04-04 17:46:28",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    },
+    {
+      "ts": "2026-04-04 17:46:21",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    },
+    {
+      "ts": "2026-04-04 17:44:04",
+      "action": "fscan",
+      "dataset": "/home/xdlinx/Music/outbound/DecodeSoftware",
+      "details": "force scan completed (quick)"
+    },
+    {
+      "ts": "2026-04-04 17:44:04",
+      "action": "fscan",
+      "dataset": "",
+      "details": "started force scan (quick)"
+    },
+    {
+      "ts": "2026-04-04 17:43:44",
+      "action": "fscan",
+      "dataset": "",
+      "details": "started force scan (quick)"
+    },
+    {
+      "ts": "2026-04-04 17:43:33",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    },
+    {
+      "ts": "2026-04-04 17:16:03",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound"
+    },
+    {
+      "ts": "2026-04-04 17:14:41",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "7 datasets under /home/xdlinx/Music"
+    },
+    {
+      "ts": "2026-04-04 17:12:51",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    },
+    {
+      "ts": "2026-04-04 17:12:45",
+      "action": "fscan",
+      "dataset": "",
+      "details": "started force scan (quick)"
+    },
+    {
+      "ts": "2026-04-04 17:12:28",
+      "action": "fscan",
+      "dataset": "",
+      "details": "started force scan (quick)"
+    },
+    {
+      "ts": "2026-04-04 17:12:25",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    },
+    {
+      "ts": "2026-04-04 17:08:17",
+      "action": "fscan",
+      "dataset": "/home/xdlinx/Music/outbound/DecodeSoftware",
+      "details": "force scan completed (quick)"
+    },
+    {
+      "ts": "2026-04-04 17:08:17",
+      "action": "fscan",
+      "dataset": "",
+      "details": "started force scan (quick)"
+    },
+    {
+      "ts": "2026-04-04 17:07:33",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    },
+    {
+      "ts": "2026-04-04 17:06:15",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    },
+    {
+      "ts": "2026-04-04 17:05:40",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    },
+    {
+      "ts": "2026-04-04 16:55:52",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    },
+    {
+      "ts": "2026-04-04 16:46:41",
+      "action": "scan_folder",
+      "dataset": "",
+      "details": "6 datasets under /home/xdlinx/Music/outbound/DecodeSoftware"
+    }
+  ],
+  "last_report": {
+    "ts": "2026-04-14 14:25:47",
+    "dataset": "/home/xdlinx/S2_Downloads/S2_wv3_7band_40.7127N_74.0060W_2024-10-18_8448x3840_band",
+    "summary": "\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n  IRIS ACQUISITION REPORT\n  Dataset : S2_wv3_7band_40.7127N_74.0060W_2024-10-18_8448x3840_band\n  Sources : log\n  Scan    : quick  |  Time: 2026-04-14 14:25:46\n  Duration: 0.0s\n\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n\n  HEALTH: 100/100  \u2705 OK\n  Summary: 0 confirmed \u00b7 0 warnings \u00b7 0 info\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  0. MISSION IDENTITY\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  1. PARAMETER FILE CHECK (14 items)\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  \u26aa [INFO] No raw argument line found in log.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  2. REQUESTED VS APPLIED\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  \u26aa [INFO] No cross-check data found in logs.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  3. FRAME ACCOUNTING\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  \u26aa [INFO] No frame accounting data in log.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  4. TEMPERATURE\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  \u26aa [INFO] No temperature data found in log.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  5. TRIGGER TIMING\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  \u26aa [INFO] No trigger timing data found in log.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  6. FPS STABILITY\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  \u26aa [INFO] Per-frame FPS lines not found in log \u2014 timing jitter cannot be assessed. Log does not contain FrameNo/instantFps/TimeDifference entries for this capture. This is normal when the log was generated by a firmware build that omits per-frame callback logging.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  7. CAMERA SETUP\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  \u2705 [OK] Camera connected. No setup issues.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  10. TEMPLATE STATUS\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  \u2705 [OK] Within normal range for 'unknown' (4 reference sessions).\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  11. POST-CAPTURE\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n  END \u2014 S2_wv3_7band_40.7127N_74.0060W_2024-10-18_8448x3840_band  |  Health: 100/100  |  Mission: unknown\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550"
+  }
+}
