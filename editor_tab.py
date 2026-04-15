@@ -3,15 +3,15 @@ from PyQt5.QtWidgets import (
     QSpinBox, QScrollArea, QMessageBox, QMenu, QUndoStack, QUndoCommand,
     QStackedWidget, QDialog, QFormLayout, QDialogButtonBox,
     QLineEdit, QCheckBox, QGraphicsView, QRadioButton, QGroupBox, QSlider, QApplication,
-    QInputDialog
+    QInputDialog, QUndoView, QDockWidget, QDoubleSpinBox, QShortcut, QToolBar, QComboBox, QTabWidget
 )
-from PyQt5.QtCore import Qt, QPointF, QRectF, QEvent, QMimeData
-from PyQt5.QtGui import QPixmap, QTransform, QCursor, QDrag, QImage
+from PyQt5.QtCore import Qt, QPointF, QRectF, QEvent, QMimeData, QSettings
+from PyQt5.QtGui import QPixmap, QTransform, QCursor, QDrag, QImage, QIcon, QKeySequence, QPainter, QColor, QPen
 import numpy as np
 from PIL import Image
 from image_viewer import GraphicsImageViewer, pil_to_qimage
 from raw_mode import RawViewer
-from tiled_viewer import TiledDisplay
+# Note: TiledDisplay import moved to lazy loading to avoid cv2 hang on module load
 
 # ---------------- Undo Commands ----------------
 class SwapCommand(QUndoCommand):
@@ -148,6 +148,25 @@ class DeleteColumnCommand(QUndoCommand):
         self.editor.show_grid()
         self.editor.update_preview()
 
+class SplitLineCommand(QUndoCommand):
+    def __init__(self, editor, prev_tiles, new_tiles, prev_positions=None, new_positions=None):
+        super().__init__("Split Image")
+        self.editor = editor
+        self.prev_tiles = [[t.copy() for t in row] for row in prev_tiles]
+        self.new_tiles = [[t.copy() for t in row] for row in new_tiles]
+        self.prev_positions = None if prev_positions is None else [[tuple(p) for p in row] for row in prev_positions]
+        self.new_positions = None if new_positions is None else [[tuple(p) for p in row] for row in new_positions]
+    def redo(self):
+        self.editor.tiles = [[t.copy() for t in row] for row in self.new_tiles]
+        self.editor.tile_positions = None if self.new_positions is None else [[tuple(p) for p in row] for row in self.new_positions]
+        self.editor.show_grid()
+        self.editor.update_preview()
+    def undo(self):
+        self.editor.tiles = [[t.copy() for t in row] for row in self.prev_tiles]
+        self.editor.tile_positions = None if self.prev_positions is None else [[tuple(p) for p in row] for row in self.prev_positions]
+        self.editor.show_grid()
+        self.editor.update_preview()
+
 class CropCommand(QUndoCommand):
     def __init__(self, editor, prev_array, new_array, is_tile=False, index=None):
         super().__init__("Crop Image")
@@ -172,6 +191,116 @@ class CropCommand(QUndoCommand):
             self.editor.tiles[r][c] = self.prev.copy()
         self.editor.show_grid()
         self.editor.update_preview()
+
+class ColorAdjustCommand(QUndoCommand):
+    """Undo command for per-tile color adjustments."""
+    def __init__(self, editor, index, brightness, contrast, gamma):
+        super().__init__("Color Adjust")
+        self.editor = editor
+        self.index = index  # (r, c) for tile
+        self.brightness = brightness
+        self.contrast = contrast
+        self.gamma = gamma
+        self.prev_array = editor.tiles[index[0]][index[1]].copy()
+        self.new_array = self._apply_adjustments(self.prev_array)
+    
+    def redo(self):
+        r, c = self.index
+        self.editor.tiles[r][c] = self.new_array.copy()
+        self.editor.show_grid()
+        self.editor.update_preview()
+    
+    def undo(self):
+        r, c = self.index
+        self.editor.tiles[r][c] = self.prev_array.copy()
+        self.editor.show_grid()
+        self.editor.update_preview()
+    
+    def _apply_adjustments(self, arr):
+        """Apply brightness, contrast, gamma to numpy array."""
+        arr = arr.astype(np.float32)
+        arr = arr + self.brightness
+        arr = (arr - 128.0) * self.contrast + 128.0
+        arr = np.power(np.clip(arr / 255.0, 0, 1), 1.0 / self.gamma) * 255.0
+        return np.clip(arr, 0, 255).astype(np.uint8)
+
+# ============ Color Adjustment Dialog ============
+class ColorAdjustDialog(QDialog):
+    """Dialog for adjusting tile color properties with live preview."""
+    def __init__(self, tile_array, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Color Adjustments")
+        self.setMinimumWidth(400)
+        self.target_array = tile_array.copy()
+        
+        layout = QVBoxLayout(self)
+        
+        # Brightness slider
+        br_layout = QHBoxLayout()
+        br_layout.addWidget(QLabel("Brightness:"))
+        self.brightness_slide = QSlider(Qt.Horizontal)
+        self.brightness_slide.setRange(-100, 100)
+        self.brightness_slide.setValue(0)
+        self.brightness_label = QLabel("0")
+        self.brightness_slide.valueChanged.connect(self._update_labels)
+        br_layout.addWidget(self.brightness_slide)
+        br_layout.addWidget(self.brightness_label)
+        layout.addLayout(br_layout)
+        
+        # Contrast slider (0.1x - 3.0x)
+        con_layout = QHBoxLayout()
+        con_layout.addWidget(QLabel("Contrast:"))
+        self.contrast_slide = QSlider(Qt.Horizontal)
+        self.contrast_slide.setRange(10, 300)
+        self.contrast_slide.setValue(100)
+        self.contrast_label = QLabel("1.0x")
+        self.contrast_slide.valueChanged.connect(self._update_labels)
+        con_layout.addWidget(self.contrast_slide)
+        con_layout.addWidget(self.contrast_label)
+        layout.addLayout(con_layout)
+        
+        # Gamma slider (0.1 - 3.0)
+        ga_layout = QHBoxLayout()
+        ga_layout.addWidget(QLabel("Gamma:"))
+        self.gamma_slide = QSlider(Qt.Horizontal)
+        self.gamma_slide.setRange(10, 300)
+        self.gamma_slide.setValue(100)
+        self.gamma_label = QLabel("1.0")
+        self.gamma_slide.valueChanged.connect(self._update_labels)
+        ga_layout.addWidget(self.gamma_slide)
+        ga_layout.addWidget(self.gamma_label)
+        layout.addLayout(ga_layout)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        reset_btn = QPushButton("Reset")
+        reset_btn.clicked.connect(self._reset)
+        ok_btn = QPushButton("Apply")
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(reset_btn)
+        btn_layout.addStretch()
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+    
+    def _update_labels(self):
+        self.brightness_label.setText(str(self.brightness_slide.value()))
+        self.contrast_label.setText(f"{self.contrast_slide.value() / 100.0:.2f}x")
+        self.gamma_label.setText(f"{self.gamma_slide.value() / 100.0:.2f}")
+    
+    def _reset(self):
+        self.brightness_slide.setValue(0)
+        self.contrast_slide.setValue(100)
+        self.gamma_slide.setValue(100)
+    
+    def get_values(self):
+        return {
+            "brightness": self.brightness_slide.value(),
+            "contrast": self.contrast_slide.value() / 100.0,
+            "gamma": self.gamma_slide.value() / 100.0,
+        }
 
 # ---------------- Tile Widget ----------------
 class TileWidget(QLabel):
@@ -289,6 +418,7 @@ class EditorTab(QWidget):
         )
         self._preview_canvas_shape = tuple(int(v) for v in self.original_array.shape[:2])
         self.tiles = []
+        self.tile_positions = None
         self.undo_stack = QUndoStack(self)
         self.uniform_grid = False
         self.notified = False
@@ -296,6 +426,8 @@ class EditorTab(QWidget):
         layout = QHBoxLayout(self)
         self.stack = QStackedWidget()
         self.preview = GraphicsImageViewer(parent)
+        self.preview.on_guru_cut = lambda direction, x, y: self.handle_guru_click_line(direction, x, y)
+        self.guru_cut_direction = "vertical"
         self.stack.addWidget(self.preview)
         self.grid_scroll = QScrollArea()
         self.grid_widget = QWidget()
@@ -317,86 +449,252 @@ class EditorTab(QWidget):
         self._editor_bottom_holder.setVisible(False)
         content_v.addWidget(self._editor_bottom_holder)
         layout.addLayout(content_v, 4)
-        controls = QVBoxLayout()
+        controls_host = QWidget()
+        controls = QVBoxLayout(controls_host)
+        controls.setContentsMargins(0, 0, 0, 0)
+        
+        # ===== MODE SELECTOR =====
+        mode_layout = QHBoxLayout()
+        mode_layout.addWidget(QLabel("Mode:"))
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Easy (Interactive)", "Medium (Values)", "Guru (All Options)"])
+        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
+        mode_layout.addWidget(self.mode_combo)
+
+        mode_layout.addStretch()
+        controls.addLayout(mode_layout)
+        
+        # ===== EASY MODE (Interactive Grid) =====
+        easy_group = QGroupBox("Interactive Grid Cropping & Tiling")
+        easy_layout = QVBoxLayout()
+        easy_label = QLabel("Grid lines now visible on image above.\n• Drag lines to resize tiles\n• Right-click to add/remove lines")
+        easy_label.setWordWrap(True)
+        easy_layout.addWidget(easy_label)
+
+        easy_toggle_row = QHBoxLayout()
+        self.easy_box_toggle = QCheckBox("Box")
+        self.easy_box_toggle.setChecked(True)
+        self.easy_box_toggle.stateChanged.connect(self._on_easy_box_toggle_changed)
+        easy_toggle_row.addWidget(self.easy_box_toggle)
+        self.easy_columns_toggle = QCheckBox("Columns")
+        self.easy_columns_toggle.setChecked(True)
+        self.easy_columns_toggle.stateChanged.connect(self._on_easy_columns_toggle_changed)
+        easy_toggle_row.addWidget(self.easy_columns_toggle)
+        self.easy_rows_toggle = QCheckBox("Rows")
+        self.easy_rows_toggle.setChecked(True)
+        self.easy_rows_toggle.stateChanged.connect(self._on_easy_rows_toggle_changed)
+        easy_toggle_row.addWidget(self.easy_rows_toggle)
+        easy_toggle_row.addStretch()
+        easy_layout.addLayout(easy_toggle_row)
+
+        easy_apply_btn = QPushButton("Apply Grid Cut")
+        easy_apply_btn.setToolTip("Split the image along the visible grid lines")
+        easy_apply_btn.clicked.connect(self._apply_easy_mode)
+        easy_layout.addWidget(easy_apply_btn)
+
+        easy_crop_btn = QPushButton("Apply Crop Box")
+        easy_crop_btn.setToolTip("Crop the image to the visible crop box")
+        easy_crop_btn.clicked.connect(self._apply_easy_crop)
+        easy_layout.addWidget(easy_crop_btn)
+
+        easy_layout.addStretch()
+        easy_group.setLayout(easy_layout)
+        self.easy_mode_group = easy_group
+        
+        # ===== MEDIUM MODE (Value-based) - Simple dropdowns =====
+        medium_group = QGroupBox("Crop & Tile by Values")
+        medium_layout = QFormLayout()
+        
+        self.medium_direction = QComboBox()
+        self.medium_direction.addItems(["Horizontal (Rows)", "Vertical (Columns)"])
+        self.medium_direction.currentIndexChanged.connect(self._update_medium_line_direction)
+        medium_layout.addRow("Direction:", self.medium_direction)
+        
+        self.medium_scope = QComboBox()
+        self.medium_scope.addItems(["Whole Image", "Single Row/Column"])
+        medium_layout.addRow("Scope:", self.medium_scope)
+
+        self.medium_slicer_active = QCheckBox("Enable Slicer")
+        self.medium_slicer_active.setChecked(False)
+        self.medium_slicer_active.setToolTip("Show slicer line and cut on click in Medium mode")
+        self.medium_slicer_active.stateChanged.connect(self._update_slicer_mode)
+        medium_layout.addRow("Slicer:", self.medium_slicer_active)
+        
+        medium_group.setLayout(medium_layout)
+        self.medium_mode_group = medium_group
+        
+        # ===== GURU MODE (Advanced Controls) =====
+        guru_group = QGroupBox("Advanced Options")
+        guru_layout = QVBoxLayout()
+
+        guru_label = QLabel("Guru mode adds direct split and crop tools.\n"
+                           "Keyboard shortcuts still work:\n"
+                           "• Ctrl+Z/Y: Undo/Redo\n"
+                           "• Shift+A: Color adjust\n"
+                           "• T: Toggle slicer orientation")
+        guru_label.setWordWrap(True)
+        guru_layout.addWidget(guru_label)
+
+        self.guru_slicer_active = QCheckBox("Enable Slicer")
+        self.guru_slicer_active.setChecked(False)
+        self.guru_slicer_active.setToolTip("Show slicer line and cut on click in Guru mode")
+        self.guru_slicer_active.stateChanged.connect(self._update_slicer_mode)
+        guru_layout.addWidget(self.guru_slicer_active)
+
+        guru_layout.addWidget(QLabel("Row Height (px)"))
         self.row_height = QSpinBox()
-        self.row_height.setRange(1, self.original_array.shape[0])
-        self.row_height.setValue(200)
+        self.row_height.setRange(1, max(1, int(self.original_array.shape[0])))
+        self.row_height.setValue(min(200, max(1, int(self.original_array.shape[0]))))
+        guru_layout.addWidget(self.row_height)
+
+        guru_split_rows_btn = QPushButton("Split Image into Rows")
+        guru_split_rows_btn.clicked.connect(self._guru_split_rows)
+        guru_layout.addWidget(guru_split_rows_btn)
+
+        guru_batch_rows_btn = QPushButton("Batch Split Rows...")
+        guru_batch_rows_btn.clicked.connect(self.show_batch_vertical_split_dialog)
+        guru_layout.addWidget(guru_batch_rows_btn)
+
+        guru_layout.addSpacing(8)
+        guru_layout.addWidget(QLabel("Column Width (px)"))
         self.col_width = QSpinBox()
-        self.col_width.setRange(1, self.original_array.shape[1])
-        self.col_width.setValue(172)
+        self.col_width.setRange(1, max(1, int(self.original_array.shape[1])))
+        self.col_width.setValue(min(172, max(1, int(self.original_array.shape[1]))))
+        guru_layout.addWidget(self.col_width)
+
+        guru_split_cols_btn = QPushButton("Split Image into Columns")
+        guru_split_cols_btn.clicked.connect(self._guru_split_cols)
+        guru_layout.addWidget(guru_split_cols_btn)
+
+        guru_batch_cols_btn = QPushButton("Batch Split Columns...")
+        guru_batch_cols_btn.clicked.connect(self.show_batch_split_dialog)
+        guru_layout.addWidget(guru_batch_cols_btn)
+
+        guru_layout.addSpacing(8)
+        guru_layout.addWidget(QLabel("Black Threshold (0-255)"))
         self.black_threshold = QSpinBox()
         self.black_threshold.setRange(0, 255)
         self.black_threshold.setValue(50)
-        split_rows_btn = QPushButton("Split Image into Rows")
-        split_rows_btn.setToolTip("Split image into row tiles")
-        split_rows_btn.clicked.connect(self.show_split_image_rows_dialog)
-        split_cols_btn = QPushButton("Split Image into Columns")
-        split_cols_btn.setToolTip("Split image into column tiles")
-        split_cols_btn.clicked.connect(self.show_split_image_columns_dialog)
-        batch_split_btn = QPushButton("Batch Split Rows...")
-        batch_split_btn.setToolTip("Batch split rows for many files")
-        batch_split_btn.clicked.connect(self.show_batch_split_dialog)
-        batch_vertical_btn = QPushButton("Batch Split Columns...")
-        batch_vertical_btn.setToolTip("Batch split columns for many files")
-        batch_vertical_btn.clicked.connect(self.show_batch_vertical_split_dialog)
+        guru_layout.addWidget(self.black_threshold)
+
         auto_crop_btn = QPushButton("Auto-Crop Borders")
-        auto_crop_btn.setToolTip("Auto-crop dark borders")
         auto_crop_btn.clicked.connect(self.auto_crop)
+        guru_layout.addWidget(auto_crop_btn)
+
         self.crop_mode = QCheckBox("Crop Mode (Click to Crop)")
         self.crop_mode.stateChanged.connect(self.toggle_crop_mode)
-        crop_dir_group = QGroupBox("Crop Direction")
-        crop_dir_layout = QHBoxLayout()
+        guru_layout.addWidget(self.crop_mode)
+
+        crop_dir_row = QHBoxLayout()
+        crop_dir_label = QLabel("Crop Direction")
+        crop_dir_row.addWidget(crop_dir_label)
+        crop_dir_row.addStretch()
+        guru_layout.addLayout(crop_dir_row)
+
+        crop_dir_opts = QHBoxLayout()
         self.crop_horizontal = QRadioButton("Horizontal")
         self.crop_vertical = QRadioButton("Vertical")
         self.crop_vertical.setChecked(True)
-        crop_dir_layout.addWidget(self.crop_horizontal)
-        crop_dir_layout.addWidget(self.crop_vertical)
-        crop_dir_group.setLayout(crop_dir_layout)
-        self.seamless_view = QCheckBox("Seamless editor view (no borders/spacing)")
-        self.seamless_view.setChecked(False)
-        self.seamless_view.hide()
-        self.force_grid = QCheckBox("Force Grid Mode (swap equals only)")
+        crop_dir_opts.addWidget(self.crop_horizontal)
+        crop_dir_opts.addWidget(self.crop_vertical)
+        crop_dir_opts.addStretch()
+        guru_layout.addLayout(crop_dir_opts)
+
+        rotate_btn = QPushButton("Rotate Entire 90° CW")
+        rotate_btn.clicked.connect(self.rotate_entire)
+        guru_layout.addWidget(rotate_btn)
+
+        guru_layout.addStretch()
+
+        guru_group.setLayout(guru_layout)
+        self.guru_mode_group = guru_group
+        
+        # Add mode-specific groups to controls (all hidden initially, showed based on mode)
+        controls.addWidget(self.easy_mode_group)
+        controls.addWidget(self.medium_mode_group)
+        controls.addWidget(self.guru_mode_group)
+        
+        # Initialize the mode after groups are created
+        self._on_mode_changed(self.mode_combo.currentIndex())
+        
+        controls.addSpacing(10)
+        
+        # ===== ALWAYS VISIBLE: Rearrange / Flip / Delete =====
+        actions_group = QGroupBox("Tile Operations")
+        actions_layout = QVBoxLayout()
+        
+        actions_label = QLabel("(Right-click tiles for options)")
+        actions_label.setWordWrap(True)
+        actions_layout.addWidget(actions_label)
+        
+        self.force_grid = QCheckBox("Force Grid Mode (equal-size swap only)")
         self.force_grid.stateChanged.connect(self.show_grid)
-        self.remove_separators = QCheckBox("Remove near-black separator lines on apply")
-        self.remove_separators.setChecked(False)
-        self.remove_separators.hide()
+        actions_layout.addWidget(self.force_grid)
+        
+        delete_label = QLabel("Delete: Right-click tile → Delete")
+        delete_label.setStyleSheet("color: #666; font-size: 9px;")
+        actions_layout.addWidget(delete_label)
+        
+        actions_group.setLayout(actions_layout)
+        controls.addWidget(actions_group)
+        
+        # ===== ALWAYS VISIBLE: Apply & Reset =====
+        apply_group = QGroupBox("Finalize")
+        apply_layout = QVBoxLayout()
+        
         self.update_source = QCheckBox("Update original viewer on apply")
         self.update_source.setChecked(True)
+        apply_layout.addWidget(self.update_source)
+        
         apply_btn = QPushButton("Apply & Create New Tab")
-        apply_btn.setToolTip("Apply edits and create new tab")
+        apply_btn.setToolTip("Apply all edits and create new tab")
+        apply_btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 8px; }")
         apply_btn.clicked.connect(self.apply)
-        undo_btn = QPushButton("Undo")
-        undo_btn.setToolTip("Undo last edit")
-        undo_btn.clicked.connect(self.undo_stack.undo)
-        redo_btn = QPushButton("Redo")
-        redo_btn.setToolTip("Redo last edit")
-        redo_btn.clicked.connect(self.undo_stack.redo)
+        apply_layout.addWidget(apply_btn)
+        
         reset_btn = QPushButton("Reset to Original")
-        reset_btn.setToolTip("Reset all edits")
+        reset_btn.setToolTip("Discard all edits")
         reset_btn.clicked.connect(self.reset)
-        rotate_entire_btn = QPushButton("Rotate Entire 90° CW")
-        rotate_entire_btn.setToolTip("Rotate full image 90° clockwise")
-        rotate_entire_btn.clicked.connect(self.rotate_entire)
-        controls.addWidget(QLabel("Row Height (px)"))
-        controls.addWidget(self.row_height)
-        controls.addWidget(split_rows_btn)
-        controls.addWidget(batch_split_btn)
-        controls.addWidget(QLabel("Column Width (px)"))
-        controls.addWidget(self.col_width)
-        controls.addWidget(split_cols_btn)
-        controls.addWidget(batch_vertical_btn)
-        controls.addWidget(QLabel("Black Threshold (0-255)"))
-        controls.addWidget(self.black_threshold)
-        controls.addWidget(auto_crop_btn)
-        controls.addWidget(self.crop_mode)
-        controls.addWidget(crop_dir_group)
-        controls.addWidget(self.force_grid)
-        controls.addWidget(self.update_source)
-        controls.addWidget(apply_btn)
-        controls.addWidget(undo_btn)
-        controls.addWidget(redo_btn)
-        controls.addWidget(reset_btn)
-        controls.addWidget(rotate_entire_btn)
+        apply_layout.addWidget(reset_btn)
+        
+        apply_group.setLayout(apply_layout)
+        controls.addWidget(apply_group)
+        
+        # ===== Always Visible: Undo/Redo =====
+        undo_group = QGroupBox("Edit History")
+        undo_layout = QVBoxLayout()
+        
+        undo_buttons = QHBoxLayout()
+        undo_btn = QPushButton("↶ Undo")
+        undo_btn.setToolTip("Undo (Ctrl+Z)")
+        undo_btn.clicked.connect(self.undo_stack.undo)
+        redo_btn = QPushButton("↷ Redo")
+        redo_btn.setToolTip("Redo (Ctrl+Y)")
+        redo_btn.clicked.connect(self.undo_stack.redo)
+        undo_buttons.addWidget(undo_btn)
+        undo_buttons.addWidget(redo_btn)
+        undo_layout.addLayout(undo_buttons)
+        
+        self.undo_view = QUndoView(self.undo_stack)
+        self.undo_view.setMaximumHeight(120)
+        undo_layout.addWidget(self.undo_view)
+        
+        undo_group.setLayout(undo_layout)
+        controls.addWidget(undo_group)
+        
+        # Initialize visibility
+        self.easy_mode_group.setVisible(True)
+        self.medium_mode_group.setVisible(False)
+        self.guru_mode_group.setVisible(False)
+        
+        controls.addStretch()
+
+        controls_scroll = QScrollArea()
+        controls_scroll.setWidgetResizable(True)
+        controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        controls_scroll.setWidget(controls_host)
+        layout.addWidget(controls_scroll, 1)
+        
         self.grid_zoom = 1.0
         self.editor_view_mode = "canvas"
         # Keep these attributes for backward compatibility in helper methods.
@@ -415,8 +713,6 @@ class EditorTab(QWidget):
         self._grid_mode_badge.mousePressEvent = lambda ev: QMessageBox.information(self, "Grid mode",
             "Grid mode is active — tiles are uniform so you can drag to reorder.\nTurn off 'Seamless editor view' to see borders.")
         # Right-panel preview zoom controls removed by request.
-        controls.addStretch()
-        layout.addLayout(controls, 1)
         self.preview.show_image(
             Image.fromarray(self.original_array),
             fit_to_screen=True
@@ -434,7 +730,31 @@ class EditorTab(QWidget):
         self._canvas_drag_target = None
         self._drag_override_cursor_active = False
         self._drag_cursor_pixmap = None  # Keep pixmap alive during drag
+        
+        # === Keyboard Shortcuts ===
+        QShortcut(QKeySequence("Ctrl+Z"), self, self.undo_stack.undo)
+        QShortcut(QKeySequence("Ctrl+Y"), self, self.undo_stack.redo)
+        QShortcut(QKeySequence("Ctrl+Shift+Z"), self, self.undo_stack.redo)
+        QShortcut(QKeySequence("Shift+A"), self, lambda: self._on_color_adjust_shortcut())
+        QShortcut(QKeySequence("T"), self, self._toggle_guru_cut_direction)
+        
         self._set_editor_view("canvas")
+
+    def _update_slicer_mode(self):
+        if self.mode_combo.currentIndex() == 1:
+            if getattr(self, 'medium_slicer_active', None) is not None and self.medium_slicer_active.isChecked():
+                self.preview.graphics_view.set_mouse_click_mode(True, self._get_medium_line_direction(), clickable=True)
+            else:
+                self.preview.graphics_view.set_mouse_click_mode(False)
+        elif self.mode_combo.currentIndex() == 2:
+            if getattr(self, 'guru_slicer_active', None) is not None and self.guru_slicer_active.isChecked():
+                self.preview.graphics_view.set_mouse_click_mode(True, self.guru_cut_direction, clickable=True)
+            else:
+                self.preview.graphics_view.set_mouse_click_mode(False)
+        else:
+            self.preview.graphics_view.set_mouse_click_mode(False)
+        self.preview.graphics_view.mouse_click_cut_pos = None
+        self.preview.graphics_view.viewport().update()
 
     def eventFilter(self, obj, event):
         if obj == self.grid_scroll and event.type() == QEvent.Wheel:
@@ -444,7 +764,12 @@ class EditorTab(QWidget):
             preview_targets.append(self.preview.graphics_view.viewport())
         except Exception:
             pass
-        if obj in preview_targets and self.tiles and not self.crop_mode.isChecked():
+        
+        # Easy mode only owns preview interactions before the image is split.
+        is_easy_mode = self.mode_combo.currentIndex() == 0
+        easy_canvas_mode = is_easy_mode and not self.tiles
+        
+        if obj in preview_targets and self.tiles:
             if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 src = self._tile_index_from_preview_click(event.globalPos())
                 if src is not None:
@@ -476,13 +801,8 @@ class EditorTab(QWidget):
                         tgt = self._tile_index_from_preview_click(event.globalPos())
                         src = self._canvas_drag_source
                         if tgt is not None and tgt != src:
-                            if self.force_grid.isChecked():
-                                s = self.tiles[src[0]][src[1]].shape
-                                t = self.tiles[tgt[0]][tgt[1]].shape
-                                if s != t:
-                                    QMessageBox.warning(self, "Swap Blocked", "Force Grid Mode: only equal-size tiles can be swapped.")
-                                    return True
-                            self.swap_tiles(src, tgt)
+                            if self._can_swap_tiles(src, tgt):
+                                self.swap_tiles(src, tgt)
                             return True
                 finally:
                     self._canvas_drag_source = None
@@ -499,9 +819,9 @@ class EditorTab(QWidget):
                     return True
             except Exception:
                 pass
-        if obj in preview_targets and self.crop_mode.isChecked() and event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-            self.handle_manual_crop_click(None, event.pos(), local=False)
-            return True
+        if obj in preview_targets and easy_canvas_mode and event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            # In Easy mode, grid interaction is handled by the graphics view
+            pass
         return super().eventFilter(obj, event)
 
     def _tile_index_from_original_coords(self, x, y):
@@ -510,6 +830,17 @@ class EditorTab(QWidget):
         xx = int(x)
         yy = int(y)
         if xx < 0 or yy < 0:
+            return None
+        if self._has_custom_tile_positions():
+            for r, row_tiles in enumerate(self.tiles):
+                for c, tile in enumerate(row_tiles):
+                    if tile.size == 0:
+                        continue
+                    tx, ty = self.tile_positions[r][c]
+                    tw = int(tile.shape[1])
+                    th = int(tile.shape[0])
+                    if tx <= xx < tx + tw and ty <= yy < ty + th:
+                        return (r, c)
             return None
         cur_y = 0
         for r, row_tiles in enumerate(self.tiles):
@@ -534,6 +865,10 @@ class EditorTab(QWidget):
         r, c = index
         if r < 0 or r >= len(self.tiles) or c < 0 or c >= len(self.tiles[r]):
             return None
+        if self._has_custom_tile_positions():
+            x, y = self.tile_positions[r][c]
+            tile = self.tiles[r][c]
+            return (int(x), int(y), int(tile.shape[1]), int(tile.shape[0]))
         y = 0
         for rr in range(r):
             row_tiles = self.tiles[rr]
@@ -544,6 +879,22 @@ class EditorTab(QWidget):
             x += int(self.tiles[r][cc].shape[1])
         tile = self.tiles[r][c]
         return (x, y, int(tile.shape[1]), int(tile.shape[0]))
+
+    def _clone_tile_positions(self):
+        if self.tile_positions is None:
+            return None
+        return [[tuple(p) for p in row] for row in self.tile_positions]
+
+    def _has_custom_tile_positions(self):
+        if self.tile_positions is None or len(self.tile_positions) != len(self.tiles):
+            return False
+        for r, row in enumerate(self.tiles):
+            if r >= len(self.tile_positions) or len(self.tile_positions[r]) != len(row):
+                return False
+        return True
+
+    def _clear_tile_positions(self):
+        self.tile_positions = None
 
     def _set_override_cursor(self, cursor):
         try:
@@ -564,9 +915,34 @@ class EditorTab(QWidget):
 
     def _set_drag_cursor_from_source(self):
         """Set cursor to dragged tile. Return False to use default ClosedHandCursor instead."""
-        # Don't create a pixmap preview - just use standard cursors
-        # The pixmap approach causes rendering artifacts/noise
-        return False
+        src = self._canvas_drag_source
+        if not self.tiles or src is None:
+            return False
+        try:
+            tile = self.tiles[src[0]][src[1]]
+            if tile is None or tile.size == 0:
+                return False
+            thumb = QPixmap.fromImage(pil_to_qimage(Image.fromarray(tile)))
+            if thumb.isNull():
+                return False
+            scaled = thumb.scaled(96, 96, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pad = 8
+            preview = QPixmap(scaled.width() + pad * 2, scaled.height() + pad * 2)
+            preview.fill(Qt.transparent)
+            painter = QPainter(preview)
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.fillRect(preview.rect(), QColor(20, 20, 20, 180))
+            painter.drawPixmap(pad, pad, scaled)
+            pen = QPen(QColor(0, 220, 255, 230), 2)
+            painter.setPen(pen)
+            painter.drawRect(preview.rect().adjusted(1, 1, -2, -2))
+            painter.end()
+            self._drag_cursor_pixmap = preview
+            self._set_override_cursor(QCursor(preview, pad + 8, pad + 8))
+            return True
+        except Exception:
+            self._drag_cursor_pixmap = None
+            return False
 
     def _tile_index_from_preview_click(self, global_pos):
         gv = getattr(self.preview, 'graphics_view', None)
@@ -600,15 +976,24 @@ class EditorTab(QWidget):
         if r < 0 or r >= len(self.tiles) or c < 0 or c >= len(self.tiles[r]):
             QMessageBox.warning(self, "Invalid Target", "Target tile index is out of range.")
             return None
-        if self.force_grid.isChecked():
-            s = self.tiles[source[0]][source[1]].shape
-            t = self.tiles[r][c].shape
-            if s != t:
-                QMessageBox.warning(self, "Swap Blocked", "Force Grid Mode: only equal-size tiles can be swapped.")
-                return None
         if (r, c) == source:
             return None
         return (r, c)
+
+    def _can_swap_tiles(self, a, b, show_message=False):
+        if not self.tiles or a is None or b is None or a == b:
+            return False
+        try:
+            ra, ca = a
+            rb, cb = b
+            src = self.tiles[ra][ca]
+            dst = self.tiles[rb][cb]
+        except Exception:
+            return False
+        if self.force_grid.isChecked():
+            return True
+        allowed = tuple(src.shape) == tuple(dst.shape)
+        return allowed
 
     def show_tile_menu(self, index, pos):
         r, c = index
@@ -622,26 +1007,50 @@ class EditorTab(QWidget):
         if num_rows == 1 and self.is_full_col(c):
             m.addAction("Split all columns into rows...", lambda: self.show_batch_vertical_split_dialog())
         m.addSeparator()
-        m.addAction("Flip this tile Left ↔ Right", lambda: self.flip_tiles([index], lr=True))
-        m.addAction("Flip this tile Top ↔ Bottom", lambda: self.flip_tiles([index], tb=True))
-        m.addAction("Rotate this tile 90° CW", lambda: self.rotate_tiles([index], -1))
-        m.addAction("Rotate this tile 180°", lambda: self.rotate_tiles([index], 2))
-        m.addAction("Rotate this tile 90° CCW", lambda: self.rotate_tiles([index], 1))
+
+        # Tile submenu
+        tile_menu = m.addMenu("Tile")
+        flip_tile_menu = tile_menu.addMenu("Flip")
+        flip_tile_menu.addAction("Left ↔ Right", lambda: self.flip_tiles([index], lr=True))
+        flip_tile_menu.addAction("Top ↔ Bottom", lambda: self.flip_tiles([index], tb=True))
+        rotate_tile_menu = tile_menu.addMenu("Rotation")
+        rotate_tile_menu.addAction("90° CW", lambda: self.rotate_tiles([index], -1))
+        rotate_tile_menu.addAction("180°", lambda: self.rotate_tiles([index], 2))
+        rotate_tile_menu.addAction("90° CCW", lambda: self.rotate_tiles([index], 1))
+
+        # Row submenu (if multiple tiles in row)
+        if num_tiles > 1:
+            row_menu = m.addMenu("Row")
+            flip_row_menu = row_menu.addMenu("Flip")
+            flip_row_menu.addAction("Left ↔ Right", lambda: self.flip_row(r, lr=True))
+            flip_row_menu.addAction("Top ↔ Bottom", lambda: self.flip_row(r, tb=True))
+            rotate_row_menu = row_menu.addMenu("Rotation")
+            rotate_row_menu.addAction("90° CW", lambda: self.rotate_row(r, -1))
+            rotate_row_menu.addAction("180°", lambda: self.rotate_row(r, 2))
+            rotate_row_menu.addAction("90° CCW", lambda: self.rotate_row(r, 1))
+
+        # Column submenu (if multiple rows)
+        if num_rows > 1:
+            col_menu = m.addMenu("Column")
+            flip_col_menu = col_menu.addMenu("Flip")
+            flip_col_menu.addAction("Left ↔ Right", lambda: self.flip_column(c, lr=True))
+            flip_col_menu.addAction("Top ↔ Bottom", lambda: self.flip_column(c, tb=True))
+            rotate_col_menu = col_menu.addMenu("Rotation")
+            rotate_col_menu.addAction("90° CW", lambda: self.rotate_column(c, -1))
+            rotate_col_menu.addAction("180°", lambda: self.rotate_column(c, 2))
+            rotate_col_menu.addAction("90° CCW", lambda: self.rotate_column(c, 1))
+
+        m.addSeparator()
         m.addAction(
             "Swap with tile...",
             lambda: (lambda tgt: self.swap_tiles(index, tgt) if tgt is not None else None)(self._prompt_swap_target(index))
         )
-        if num_tiles > 1:
-            m.addSeparator()
-            m.addAction("Flip ENTIRE ROW Left ↔ Right", lambda: self.flip_row(r, lr=True))
-            m.addAction("Flip ENTIRE ROW Top ↔ Bottom", lambda: self.flip_row(r, tb=True))
-            m.addAction("Rotate ENTIRE ROW 90° CW", lambda: self.rotate_row(r, -1))
-            m.addAction("Rotate ENTIRE ROW 180°", lambda: self.rotate_row(r, 2))
-            m.addAction("Rotate ENTIRE ROW 90° CCW", lambda: self.rotate_row(r, 1))
+        m.addAction("Color Adjust [Shift+A]...", lambda: self._show_color_adjust_dialog(index))
         m.addSeparator()
-        m.addAction("Delete this tile", lambda: self.delete_tile(index))
-        m.addAction("Delete this row", lambda: self.delete_row(r))
-        m.addAction("Delete this column", lambda: self.delete_column(c))
+        delete_menu = m.addMenu("Delete")
+        delete_menu.addAction("Delete this tile", lambda: self.delete_tile(index))
+        delete_menu.addAction("Delete this row", lambda: self.delete_row(r))
+        delete_menu.addAction("Delete this column", lambda: self.delete_column(c))
         m.exec_(pos)
 
     def toggle_crop_mode(self, state):
@@ -651,7 +1060,9 @@ class EditorTab(QWidget):
             tw.setCursor(cursor)
 
     def handle_manual_crop_click(self, index, pos, local):
-        direction = 'horizontal' if self.crop_horizontal.isChecked() else 'vertical'
+        # This method is deprecated with the new 3-mode system
+        # Keeping for backward compatibility, but shouldn't be called
+        direction = 'horizontal'  # Default to horizontal
         if local and index is not None:
             dialog_title = f"Crop Tile ({direction.capitalize()})"
             size = self.tiles[index[0]][index[1]].shape[0 if direction == 'horizontal' else 1]
@@ -789,34 +1200,43 @@ class EditorTab(QWidget):
             return
         self._zoom_preview(factor)
 
-    def show_split_image_rows_dialog(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Split Image into Rows")
-        form = QFormLayout(dialog)
-        height_spin = QSpinBox()
-        height_spin.setRange(1, self.original_array.shape[0])
-        height_spin.setValue(self.row_height.value())
-        form.addRow("Row Height:", height_spin)
-        dir_group = QGroupBox("Direction")
-        dir_layout = QHBoxLayout()
-        top_to_bottom = QRadioButton("Top to Bottom")
-        top_to_bottom.setChecked(True)
-        bottom_to_top = QRadioButton("Bottom to Top")
-        dir_layout.addWidget(top_to_bottom)
-        dir_layout.addWidget(bottom_to_top)
-        dir_group.setLayout(dir_layout)
-        form.addRow(dir_group)
-        trim_rem = QCheckBox("Trim remainder to make even (unlocks grid mode)")
-        form.addRow(trim_rem)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        form.addRow(buttons)
-        if dialog.exec_() != QDialog.Accepted:
-            return
-        row_h = height_spin.value()
-        trim_remainder = trim_rem.isChecked()
-        ttb = top_to_bottom.isChecked()
+    def show_split_image_rows_dialog(self, row_height=None):
+        """Show dialog to split image into rows. If row_height provided, use directly."""
+        if row_height is not None:
+            # Direct call from medium mode - skip dialog
+            row_h = row_height
+            trim_remainder = True
+            ttb = True
+        else:
+            # Interactive dialog
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Split Image into Rows")
+            form = QFormLayout(dialog)
+            height_spin = QSpinBox()
+            height_spin.setRange(1, self.original_array.shape[0])
+            height_spin.setValue(getattr(self, 'row_height', None) and self.row_height.value() or 200)
+            form.addRow("Row Height:", height_spin)
+            dir_group = QGroupBox("Direction")
+            dir_layout = QHBoxLayout()
+            top_to_bottom = QRadioButton("Top to Bottom")
+            top_to_bottom.setChecked(True)
+            bottom_to_top = QRadioButton("Bottom to Top")
+            dir_layout.addWidget(top_to_bottom)
+            dir_layout.addWidget(bottom_to_top)
+            dir_group.setLayout(dir_layout)
+            form.addRow(dir_group)
+            trim_rem = QCheckBox("Trim remainder to make even (unlocks grid mode)")
+            form.addRow(trim_rem)
+            buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            buttons.accepted.connect(dialog.accept)
+            buttons.rejected.connect(dialog.reject)
+            form.addRow(buttons)
+            if dialog.exec_() != QDialog.Accepted:
+                return
+            row_h = height_spin.value()
+            trim_remainder = trim_rem.isChecked()
+            ttb = top_to_bottom.isChecked()
+        
         if self.tiles:
             if len(self.tiles) == 1 and all(self.is_full_col(c) for c in range(len(self.tiles[0]))):
                 self.show_batch_vertical_split_dialog()
@@ -825,6 +1245,7 @@ class EditorTab(QWidget):
             return
         self.undo_stack.clear()
         self.tiles = []
+        self._clear_tile_positions()
         img_h, img_w = self.original_array.shape
         if row_h < 1 or row_h >= img_h:
             QMessageBox.warning(self, "Error", "Invalid row height")
@@ -851,34 +1272,43 @@ class EditorTab(QWidget):
         elif remain > 0:
             QMessageBox.information(self, "Note", "Remainder trimmed.")
 
-    def show_split_image_columns_dialog(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Split Image into Columns")
-        form = QFormLayout(dialog)
-        width_spin = QSpinBox()
-        width_spin.setRange(1, self.original_array.shape[1])
-        width_spin.setValue(self.col_width.value())
-        form.addRow("Column Width:", width_spin)
-        dir_group = QGroupBox("Direction")
-        dir_layout = QHBoxLayout()
-        left_to_right = QRadioButton("Left to Right")
-        left_to_right.setChecked(True)
-        right_to_left = QRadioButton("Right to Left")
-        dir_layout.addWidget(left_to_right)
-        dir_layout.addWidget(right_to_left)
-        dir_group.setLayout(dir_layout)
-        form.addRow(dir_group)
-        trim_rem = QCheckBox("Trim remainder to make even (unlocks grid mode)")
-        form.addRow(trim_rem)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        form.addRow(buttons)
-        if dialog.exec_() != QDialog.Accepted:
-            return
-        col_w = width_spin.value()
-        trim_remainder = trim_rem.isChecked()
-        ltr = left_to_right.isChecked()
+    def show_split_image_columns_dialog(self, col_width=None):
+        """Show dialog to split image into columns. If col_width provided, use directly."""
+        if col_width is not None:
+            # Direct call from medium mode - skip dialog
+            col_w = col_width
+            trim_remainder = True
+            ltr = True
+        else:
+            # Interactive dialog
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Split Image into Columns")
+            form = QFormLayout(dialog)
+            width_spin = QSpinBox()
+            width_spin.setRange(1, self.original_array.shape[1])
+            width_spin.setValue(getattr(self, 'col_width', None) and self.col_width.value() or 172)
+            form.addRow("Column Width:", width_spin)
+            dir_group = QGroupBox("Direction")
+            dir_layout = QHBoxLayout()
+            left_to_right = QRadioButton("Left to Right")
+            left_to_right.setChecked(True)
+            right_to_left = QRadioButton("Right to Left")
+            dir_layout.addWidget(left_to_right)
+            dir_layout.addWidget(right_to_left)
+            dir_group.setLayout(dir_layout)
+            form.addRow(dir_group)
+            trim_rem = QCheckBox("Trim remainder to make even (unlocks grid mode)")
+            form.addRow(trim_rem)
+            buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            buttons.accepted.connect(dialog.accept)
+            buttons.rejected.connect(dialog.reject)
+            form.addRow(buttons)
+            if dialog.exec_() != QDialog.Accepted:
+                return
+            col_w = width_spin.value()
+            trim_remainder = trim_rem.isChecked()
+            ltr = left_to_right.isChecked()
+        
         if self.tiles:
             if all(self.is_full_row(r) for r in range(len(self.tiles))):
                 self.show_batch_split_dialog()
@@ -887,6 +1317,7 @@ class EditorTab(QWidget):
             return
         self.undo_stack.clear()
         self.tiles = []
+        self._clear_tile_positions()
         img_h, img_w = self.original_array.shape
         if col_w < 1 or col_w >= img_w:
             QMessageBox.warning(self, "Error", "Invalid column width")
@@ -1187,6 +1618,14 @@ class EditorTab(QWidget):
         indices = [(row, c) for c in range(len(self.tiles[row]))]
         self.rotate_tiles(indices, k)
 
+    def flip_column(self, col, lr=False, tb=False):
+        indices = [(r, col) for r in range(len(self.tiles)) if col < len(self.tiles[r])]
+        self.flip_tiles(indices, lr=lr, tb=tb)
+
+    def rotate_column(self, col, k):
+        indices = [(r, col) for r in range(len(self.tiles)) if col < len(self.tiles[r])]
+        self.rotate_tiles(indices, k)
+
     def rotate_entire(self):
         if not self.tiles:
             command = RotateOriginalCommand(self, -1)
@@ -1198,6 +1637,7 @@ class EditorTab(QWidget):
     def reset(self):
         self.tiles = []
         self.undo_stack.clear()
+        self._set_easy_overlay_checkboxes(True, True, True)
         self.stack.setCurrentWidget(self.preview)
         self.show_grid()
         self.update_preview()
@@ -1348,7 +1788,24 @@ class EditorTab(QWidget):
         command = DeleteTileCommand(self, r, c, prev_tile)
         self.undo_stack.push(command)
 
+    def _show_color_adjust_dialog(self, index):
+        """Open color adjustment dialog for a tile."""
+        r, c = index
+        tile = self.tiles[r][c]
+        dialog = ColorAdjustDialog(tile, self)
+        if dialog.exec_() == QDialog.Accepted:
+            vals = dialog.get_values()
+            cmd = ColorAdjustCommand(
+                self, index, 
+                vals["brightness"], 
+                vals["contrast"], 
+                vals["gamma"]
+            )
+            self.undo_stack.push(cmd)
+
     def show_grid(self):
+        if not self._has_custom_tile_positions():
+            self.tile_positions = None
         for i in reversed(range(self.grid_layout.count())):
             widget = self.grid_layout.itemAt(i).widget()
             if widget:
@@ -1387,6 +1844,498 @@ class EditorTab(QWidget):
         except Exception:
             pass
 
+    def _update_undo_depth_label(self):
+        """Update the undo history panel label."""
+        depth = self.undo_stack.index()
+        if hasattr(self, 'undo_view'):
+            # QUndoView automatically shows history
+            pass
+
+    def _on_color_adjust_shortcut(self):
+        """Handle Shift+A shortcut for color adjustment (on first tile if any)."""
+        if self.tiles:
+            self._show_color_adjust_dialog((0, 0))
+
+    def _apply_easy_overlay_options(self):
+        gview = getattr(self.preview, "graphics_view", None)
+        if gview is None:
+            return
+        box_checked = self.easy_box_toggle.isChecked()
+        self.easy_columns_toggle.setEnabled(box_checked)
+        self.easy_rows_toggle.setEnabled(box_checked)
+        if not box_checked:
+            self.easy_columns_toggle.blockSignals(True)
+            self.easy_rows_toggle.blockSignals(True)
+            try:
+                self.easy_columns_toggle.setChecked(False)
+                self.easy_rows_toggle.setChecked(False)
+            finally:
+                self.easy_columns_toggle.blockSignals(False)
+                self.easy_rows_toggle.blockSignals(False)
+        cols_checked = self.easy_columns_toggle.isChecked()
+        rows_checked = self.easy_rows_toggle.isChecked()
+        gview.set_easy_grid_options(
+            show_box=box_checked,
+            show_columns=box_checked and cols_checked,
+            show_rows=box_checked and rows_checked,
+        )
+        gview.set_crop_box_mode(box_checked)
+        if box_checked:
+            gview._sync_grid_spacing()
+        gview.viewport().update()
+
+    def _set_easy_overlay_checkboxes(self, box_checked, cols_checked=None, rows_checked=None):
+        if cols_checked is None:
+            cols_checked = box_checked
+        if rows_checked is None:
+            rows_checked = box_checked
+        widgets = [self.easy_box_toggle, self.easy_columns_toggle, self.easy_rows_toggle]
+        for widget in widgets:
+            widget.blockSignals(True)
+        try:
+            self.easy_box_toggle.setChecked(bool(box_checked))
+            self.easy_columns_toggle.setChecked(bool(cols_checked))
+            self.easy_rows_toggle.setChecked(bool(rows_checked))
+        finally:
+            for widget in widgets:
+                widget.blockSignals(False)
+        self._apply_easy_overlay_options()
+
+    def _on_easy_box_toggle_changed(self, state):
+        checked = bool(state)
+        self.easy_columns_toggle.blockSignals(True)
+        self.easy_rows_toggle.blockSignals(True)
+        try:
+            if not checked:
+                self.easy_columns_toggle.setChecked(False)
+                self.easy_rows_toggle.setChecked(False)
+        finally:
+            self.easy_columns_toggle.blockSignals(False)
+            self.easy_rows_toggle.blockSignals(False)
+        self._apply_easy_overlay_options()
+
+    def _on_easy_columns_toggle_changed(self, state):
+        if state and not self.easy_box_toggle.isChecked():
+            self.easy_box_toggle.setChecked(True)
+            return
+        self._apply_easy_overlay_options()
+
+    def _on_easy_rows_toggle_changed(self, state):
+        if state and not self.easy_box_toggle.isChecked():
+            self.easy_box_toggle.setChecked(True)
+            return
+        self._apply_easy_overlay_options()
+
+    def _on_mode_changed(self, index):
+        """Handle mode selection change (Easy | Medium | Guru)."""
+        self.easy_mode_group.setVisible(index >= 0)
+        self.medium_mode_group.setVisible(index >= 1)
+        self.guru_mode_group.setVisible(index >= 2)
+
+        # Higher modes keep lower-mode tools available.
+        self.preview.graphics_view.grid_divisions = 6
+        self.preview.graphics_view.crop_box_rect = None
+        self.preview.graphics_view.toggle_grid(True)
+        self._apply_easy_overlay_options()
+        self._update_slicer_mode()
+
+    def _toggle_guru_cut_direction(self):
+        self.guru_cut_direction = "horizontal" if self.guru_cut_direction == "vertical" else "vertical"
+        if self.mode_combo.currentIndex() == 2 and getattr(self, 'guru_slicer_active', None) is not None and self.guru_slicer_active.isChecked():
+            self.preview.graphics_view.set_mouse_click_mode(True, self.guru_cut_direction, clickable=True)
+        QMessageBox.information(self, "Guru Cut Orientation",
+            f"Cut orientation set to {self.guru_cut_direction.capitalize()}.\n"
+            "Click anywhere in Guru mode to place the cut line.")
+
+    def _get_medium_line_direction(self):
+        return "horizontal" if "Horizontal" in self.medium_direction.currentText() else "vertical"
+
+    def _update_medium_line_direction(self):
+        if self.mode_combo.currentIndex() == 1 and getattr(self, 'medium_slicer_active', None) is not None and self.medium_slicer_active.isChecked():
+            self.preview.graphics_view.set_mouse_click_mode(True, self._get_medium_line_direction(), clickable=True)
+
+    def handle_guru_click_line(self, direction, x, y):
+        if self.mode_combo.currentIndex() == 0:
+            return
+        if self.mode_combo.currentIndex() == 1 and (getattr(self, 'medium_slicer_active', None) is None or not self.medium_slicer_active.isChecked()):
+            return
+        if self.mode_combo.currentIndex() == 2 and (getattr(self, 'guru_slicer_active', None) is None or not self.guru_slicer_active.isChecked()):
+            return
+
+        # Whole Image scope (unchanged)
+        if self.mode_combo.currentIndex() == 1 and self.medium_scope.currentText() == "Whole Image" and self.tiles:
+            prev_tiles = [[t.copy() for t in row] for row in self.tiles]
+            prev_positions = self._clone_tile_positions()
+            if direction == "vertical":
+                new_tiles = []
+                for row_tiles in self.tiles:
+                    row_new = []
+                    current_x = 0
+                    for tile in row_tiles:
+                        tile_w = tile.shape[1]
+                        if x <= current_x or x >= current_x + tile_w:
+                            row_new.append(tile.copy())
+                        else:
+                            split_pos = int(x - current_x)
+                            left_part = tile[:, :split_pos].copy()
+                            right_part = tile[:, split_pos:].copy()
+                            if left_part.size > 0:
+                                row_new.append(left_part)
+                            if right_part.size > 0:
+                                row_new.append(right_part)
+                        current_x += tile_w
+                    new_tiles.append(row_new)
+            else:
+                new_tiles = []
+                current_y = 0
+                split_done = False
+                for row_tiles in self.tiles:
+                    row_h = row_tiles[0].shape[0] if row_tiles else 0
+                    if split_done or y <= current_y:
+                        new_tiles.append([t.copy() for t in row_tiles])
+                    elif y >= current_y + row_h:
+                        new_tiles.append([t.copy() for t in row_tiles])
+                    else:
+                        split_pos = int(y - current_y)
+                        top_row = []
+                        bottom_row = []
+                        for tile in row_tiles:
+                            top_part = tile[:split_pos, :].copy()
+                            bottom_part = tile[split_pos:, :].copy()
+                            if top_part.size > 0:
+                                top_row.append(top_part)
+                            if bottom_part.size > 0:
+                                bottom_row.append(bottom_part)
+                        if top_row:
+                            new_tiles.append(top_row)
+                        if bottom_row:
+                            new_tiles.append(bottom_row)
+                        split_done = True
+                    current_y += row_h
+            self.tiles = new_tiles
+            command = SplitLineCommand(self, prev_tiles, self.tiles, prev_positions, self._clone_tile_positions())
+            self.undo_stack.push(command)
+            self.show_grid()
+            self.update_preview()
+            self.preview.graphics_view.mouse_click_cut_pos = None
+            self.preview.graphics_view.update()
+            return
+
+        # SINGLE ROW/COLUMN SCOPE - FIXED (no duplication, piece stays in same position)
+        if self.mode_combo.currentIndex() == 1 and self.medium_scope.currentText() == "Single Row/Column" and self.tiles:
+            tile_index = self._find_tile_from_coords(x, y)
+            if tile_index is None:
+                return
+            r, c = tile_index
+            tile_x, tile_y = self._get_tile_position(r, c)
+            prev_tiles = [[t.copy() for t in row] for row in self.tiles]
+            prev_positions = self._clone_tile_positions()
+
+            if direction == "vertical":
+                # vertical split (unchanged)
+                row_tiles = self.tiles[r]
+                new_row = []
+                split_done = False
+                for cc, tile in enumerate(row_tiles):
+                    tile_x_pos = self._get_tile_position(r, cc)[0]
+                    tile_w = tile.shape[1]
+                    if tile_x_pos <= x < tile_x_pos + tile_w:
+                        rel_x = x - tile_x_pos
+                        left_part = tile[:, :rel_x].copy()
+                        right_part = tile[:, rel_x:].copy()
+                        if left_part.size == 0 or right_part.size == 0:
+                            return
+                        new_row.append(left_part)
+                        new_row.append(right_part)
+                        split_done = True
+                    else:
+                        new_row.append(tile.copy())
+                if not split_done:
+                    return
+                self.tiles[r] = new_row
+
+            else:
+                # HORIZONTAL CUT - split only the clicked tile while preserving its
+                # on-canvas placement via explicit tile positions.
+                rel_y = y - tile_y
+                if rel_y <= 0 or rel_y >= self.tiles[r][c].shape[0]:
+                    return
+
+                top_part = self.tiles[r][c][:rel_y, :].copy()
+                bottom_part = self.tiles[r][c][rel_y:, :].copy()
+                if top_part.size == 0 or bottom_part.size == 0:
+                    return
+
+                top_tiles = [self.tiles[r][cc].copy() for cc in range(len(self.tiles[r]))]
+                top_tiles[c] = top_part
+                bottom_tiles = []
+                if not self._has_custom_tile_positions():
+                    self.tile_positions = []
+                    current_y = 0
+                    for rr, row_tiles in enumerate(self.tiles):
+                        row_pos = []
+                        current_x = 0
+                        row_h = max((int(t.shape[0]) for t in row_tiles), default=0)
+                        for tile in row_tiles:
+                            row_pos.append((current_x, current_y))
+                            current_x += int(tile.shape[1])
+                        self.tile_positions.append(row_pos)
+                        current_y += row_h
+                top_positions = [tuple(self.tile_positions[r][cc]) for cc in range(len(self.tiles[r]))]
+                bottom_positions = []
+                for cc in range(len(self.tiles[r])):
+                    if cc == c:
+                        bottom_tiles.append(bottom_part)
+                        bx, by = self.tile_positions[r][cc]
+                        bottom_positions.append((int(bx), int(by + rel_y)))
+                    else:
+                        bottom_tiles.append(
+                            np.zeros((0, self.tiles[r][cc].shape[1]), dtype=self.tiles[r][cc].dtype)
+                        )
+                        bottom_positions.append(tuple(self.tile_positions[r][cc]))
+
+                self.tiles[r] = top_tiles
+                self.tile_positions[r] = top_positions
+                self.tiles.insert(r + 1, bottom_tiles)
+                self.tile_positions.insert(r + 1, bottom_positions)
+
+
+            command = SplitLineCommand(self, prev_tiles, self.tiles, prev_positions, self._clone_tile_positions())
+            self.undo_stack.push(command)
+            self.show_grid()
+            self.update_preview()
+            self.preview.graphics_view.mouse_click_cut_pos = None
+            self.preview.graphics_view.update()
+            return
+
+        # Guru mode + unsplit image (keep the rest of your original code unchanged)
+        if not self.tiles:
+            img_h, img_w = self.original_array.shape
+            if direction == "vertical":
+                if x <= 0 or x >= img_w: return
+                left = self.original_array[:, :x].copy()
+                right = self.original_array[:, x:].copy()
+                if left.size == 0 or right.size == 0: return
+                new_tiles = [[left, right]]
+            else:
+                if y <= 0 or y >= img_h: return
+                top = self.original_array[:y, :].copy()
+                bottom = self.original_array[y:, :].copy()
+                if top.size == 0 or bottom.size == 0: return
+                new_tiles = [[top], [bottom]]
+            command = SplitLineCommand(self, [], new_tiles, None, None)
+            self.undo_stack.push(command)
+            self.show_grid()
+            self.update_preview()
+            self.preview.graphics_view.mouse_click_cut_pos = None
+            self.preview.graphics_view.update()
+            return
+
+        tile_index = self._find_tile_from_coords(x, y)
+        if tile_index is None:
+            return
+        r, c = tile_index
+        tile = self.tiles[r][c]
+        tile_h, tile_w = tile.shape
+        tile_x, tile_y = self._get_tile_position(r, c)
+        rel_x = x - tile_x
+        rel_y = y - tile_y
+        prev_tiles = [[t.copy() for t in row] for row in self.tiles]
+        prev_positions = self._clone_tile_positions()
+
+        if direction == "vertical":
+            if rel_x <= 0 or rel_x >= tile_w: return
+            left = tile[:, :rel_x].copy()
+            right = tile[:, rel_x:].copy()
+            if left.size == 0 or right.size == 0: return
+            self.tiles[r].insert(c + 1, right)
+            self.tiles[r][c] = left
+        else:
+            if rel_y <= 0 or rel_y >= tile_h: return
+            top = tile[:rel_y, :].copy()
+            bottom = tile[rel_y:, :].copy()
+            if top.size == 0 or bottom.size == 0: return
+            self.tiles.insert(r + 1, [np.zeros_like(self.tiles[r][0]) for _ in range(len(self.tiles[r]))])
+            for cc in range(len(self.tiles[r])):
+                if cc == c:
+                    self.tiles[r][cc] = top
+                    self.tiles[r + 1][cc] = bottom
+                else:
+                    self.tiles[r + 1][cc] = self.tiles[r][cc].copy()
+
+        command = SplitLineCommand(self, prev_tiles, self.tiles, prev_positions, self._clone_tile_positions())
+        self.undo_stack.push(command)
+        self.show_grid()
+        self.update_preview()
+        self.preview.graphics_view.mouse_click_cut_pos = None
+        self.preview.graphics_view.update()
+
+    def _find_tile_from_coords(self, x, y):
+        """Find which tile contains the given coordinates in the composed image."""
+        if not self.tiles:
+            return None
+        if self._has_custom_tile_positions():
+            for r, row in enumerate(self.tiles):
+                for c, tile in enumerate(row):
+                    h = int(tile.shape[0])
+                    w = int(tile.shape[1])
+                    if h <= 0 or w <= 0:
+                        continue
+                    tx, ty = self.tile_positions[r][c]
+                    if tx <= x < tx + w and ty <= y < ty + h:
+                        return (r, c)
+            return None
+        current_y = 0
+        for r, row in enumerate(self.tiles):
+            if not row:
+                continue
+            row_height = row[0].shape[0]
+            current_x = 0
+            for c, tile in enumerate(row):
+                tile_width = tile.shape[1]
+                if current_x <= x < current_x + tile_width and current_y <= y < current_y + row_height:
+                    return (r, c)
+                current_x += tile_width
+            current_y += row_height
+        return None
+
+    def _get_tile_position(self, r, c):
+        """Get the top-left position of a tile in the composed image."""
+        if self._has_custom_tile_positions():
+            x, y = self.tile_positions[r][c]
+            return int(x), int(y)
+        x = sum(tile.shape[1] for tile in self.tiles[r][:c])
+        y = sum(self.tiles[row][0].shape[0] for row in range(r))
+        return x, y
+
+    def _apply_easy_mode(self):
+        """Easy mode uses interactive grid - grid is already visible on image."""
+        if self.tiles:
+            QMessageBox.warning(self, "Easy Mode", "Cannot apply grid cut: image already split.")
+            return
+        gview = self.preview.graphics_view
+        if not gview.grid_enabled:
+            QMessageBox.warning(self, "Easy Mode", "Enable the grid first before applying a cut.")
+            return
+        if not self.easy_columns_toggle.isChecked() and not self.easy_rows_toggle.isChecked():
+            QMessageBox.warning(self, "Easy Mode", "Enable Columns or Rows to create grid cuts.")
+            return
+        bounds = gview.get_crop_box_bounds() if self.easy_box_toggle.isChecked() else (0, 0, self.original_array.shape[1], self.original_array.shape[0])
+        if not bounds:
+            QMessageBox.warning(self, "Easy Mode", "Crop box is not available.")
+            return
+        left, top, right, bottom = bounds
+        if right <= left or bottom <= top:
+            QMessageBox.warning(self, "Easy Mode", "Crop box is too small.")
+            return
+        width = right - left
+        height = bottom - top
+        x_positions = []
+        y_positions = []
+        if self.easy_columns_toggle.isChecked():
+            x_positions = gview._iter_grid_positions(right, gview.grid_spacing_x, left)
+        if self.easy_rows_toggle.isChecked():
+            y_positions = gview._iter_grid_positions(bottom, gview.grid_spacing_y, top)
+        xs = [left] + [int(round(x)) for x in x_positions if left < x < right] + [right]
+        ys = [top] + [int(round(y)) for y in y_positions if top < y < bottom] + [bottom]
+        xs = sorted(set(xs))
+        ys = sorted(set(ys))
+        if not self.easy_columns_toggle.isChecked():
+            xs = [left, right]
+        if not self.easy_rows_toggle.isChecked():
+            ys = [top, bottom]
+        if len(xs) < 2 or len(ys) < 2 or width <= 0 or height <= 0:
+            QMessageBox.warning(self, "Easy Mode", "Not enough grid lines to split the image.")
+            return
+        new_tiles = []
+        for yi in range(len(ys) - 1):
+            row = []
+            y0, y1 = ys[yi], ys[yi + 1]
+            for xi in range(len(xs) - 1):
+                x0, x1 = xs[xi], xs[xi + 1]
+                row.append(self.original_array[y0:y1, x0:x1].copy())
+            new_tiles.append(row)
+        self.undo_stack.clear()
+        command = SplitLineCommand(self, [], new_tiles)
+        self.undo_stack.push(command)
+        self.show_grid()
+        self.update_preview()
+        gview.toggle_grid(False)
+        gview.set_crop_box_mode(False)
+        self._set_easy_overlay_checkboxes(False, False, False)
+        QMessageBox.information(self, "Easy Mode", "Grid cut applied.")
+
+    def _apply_easy_crop(self):
+        """Apply the interactive crop box shown in Easy mode."""
+        if self.tiles:
+            QMessageBox.warning(self, "Easy Mode", "Cannot crop with the Easy crop box after the image has been split.")
+            return
+        if not self.easy_box_toggle.isChecked():
+            QMessageBox.warning(self, "Easy Mode", "Enable Box to use crop.")
+            return
+        gview = self.preview.graphics_view
+        bounds = gview.get_crop_box_bounds() if hasattr(gview, "get_crop_box_bounds") else None
+        if not bounds:
+            QMessageBox.warning(self, "Easy Mode", "Crop box is not available.")
+            return
+        left, top, right, bottom = bounds
+        prev = self.original_array.copy()
+        new = prev[top:bottom, left:right].copy()
+        if new.size == 0 or new.shape == prev.shape:
+            QMessageBox.information(self, "Easy Mode", "Adjust the crop box before applying.")
+            return
+        self.undo_stack.push(CropCommand(self, prev, new))
+        self.original_array = new.copy()
+        self.show_grid()
+        self.update_preview()
+        try:
+            gview.crop_box_rect = None
+            gview._init_crop_box_rect()
+            if gview.grid_enabled:
+                gview._sync_grid_spacing()
+        except Exception:
+            pass
+        QMessageBox.information(self, "Easy Mode", "Crop applied.")
+
+    def _apply_medium_mode(self):
+        """Apply splitting from medium (value-based) mode."""
+        direction = self.medium_direction.currentText()
+        scope = self.medium_scope.currentText()
+        
+        is_horizontal = "Horizontal" in direction
+        
+        try:
+            if is_horizontal:
+                self.show_split_image_rows_dialog()
+            else:
+                self.show_split_image_columns_dialog()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Split failed: {str(e)}")
+    
+    def _guru_split_rows(self):
+        """Guru mode: split by row height."""
+        value = self.guru_row_height.value()
+        try:
+            self.show_split_image_rows_dialog(row_height=value)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Row split failed: {str(e)}")
+    
+    def _guru_split_cols(self):
+        """Guru mode: split by column width."""
+        value = self.guru_col_width.value()
+        try:
+            self.show_split_image_columns_dialog(col_width=value)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Column split failed: {str(e)}")
+    
+    def _guru_toggle_grid(self):
+        """Guru mode: toggle grid with custom divisions."""
+        divisions = self.guru_grid_divisions.value()
+        self.preview.graphics_view.set_grid_divisions(divisions)
+        self.preview.graphics_view.toggle_grid(not self.preview.graphics_view.grid_enabled)
+        status = "ON" if self.preview.graphics_view.grid_enabled else "OFF"
+        QMessageBox.information(self, "Grid", f"Grid toggled {status}")
+
     def _set_editor_view(self, mode):
         self.editor_view_mode = "canvas"
         self.stack.setCurrentWidget(self.preview)
@@ -1404,16 +2353,7 @@ class EditorTab(QWidget):
         Prefer the preview widget background so padding looks like UI background
         (visual-only — does NOT change the actual image data used by Apply).
         """
-        try:
-            # ask the preview widget for its background color and convert to luminance
-            pal = self.preview.palette()
-            col = pal.color(self.preview.backgroundRole())
-            r, g, b, _ = col.getRgb()
-            # convert to luma (ITU-R BT.601)
-            luma = int(round(0.299 * r + 0.587 * g + 0.114 * b))
-            return max(0, min(255, luma))
-        except Exception:
-            return 0
+        return 0
 
     def _compute_row_display_crop(self, row_index):
         """Compute a display-only vertical crop for one tile row in seamless mode."""
@@ -1472,8 +2412,36 @@ class EditorTab(QWidget):
             return tile
 
     def _sync_preview_canvas_from_original(self):
-        """Align preview canvas geometry to current base image geometry."""
+        """Align preview canvas geometry to current content geometry."""
         try:
+            if self.tiles:
+                if self._has_custom_tile_positions():
+                    max_h = 0
+                    max_w = 0
+                    for r, row_tiles in enumerate(self.tiles):
+                        for c, tile in enumerate(row_tiles):
+                            h = int(tile.shape[0])
+                            w = int(tile.shape[1])
+                            if h <= 0 or w <= 0:
+                                continue
+                            x, y = self.tile_positions[r][c]
+                            max_w = max(max_w, int(x) + w)
+                            max_h = max(max_h, int(y) + h)
+                    if max_h > 0 and max_w > 0:
+                        self._preview_canvas_shape = (int(max_h), int(max_w))
+                        return
+                total_h = 0
+                max_w = 0
+                for row_tiles in self.tiles:
+                    if not row_tiles:
+                        continue
+                    row_h = max(int(t.shape[0]) for t in row_tiles)
+                    row_w = sum(int(t.shape[1]) for t in row_tiles)
+                    total_h += max(0, row_h)
+                    max_w = max(max_w, max(0, row_w))
+                if total_h > 0 and max_w > 0:
+                    self._preview_canvas_shape = (int(total_h), int(max_w))
+                    return
             h, w = self.original_array.shape[:2]
             if h > 0 and w > 0:
                 self._preview_canvas_shape = (int(h), int(w))
@@ -1502,6 +2470,46 @@ class EditorTab(QWidget):
             w = min(canvas_w, self.original_array.shape[1])
             if h > 0 and w > 0:
                 canvas[:h, :w] = self.original_array[:h, :w]
+            return canvas
+        if self._has_custom_tile_positions():
+            used_w = 0
+            used_h = 0
+            for r, row_tiles in enumerate(self.tiles):
+                for c, tile in enumerate(row_tiles):
+                    h = int(tile.shape[0])
+                    w = int(tile.shape[1])
+                    if h <= 0 or w <= 0:
+                        continue
+                    x, y = self.tile_positions[r][c]
+                    x = int(x)
+                    y = int(y)
+                    if y < canvas_h and x < canvas_w:
+                        copy_h = min(h, canvas_h - y)
+                        copy_w = min(w, canvas_w - x)
+                        if copy_h > 0 and copy_w > 0:
+                            canvas[y:y + copy_h, x:x + copy_w] = tile[:copy_h, :copy_w]
+                    used_w = max(used_w, min(canvas_w, x + w))
+                    used_h = max(used_h, min(canvas_h, y + h))
+            guide_rects = []
+            for r, row_tiles in enumerate(self.tiles):
+                for c, tile in enumerate(row_tiles):
+                    h = int(tile.shape[0])
+                    w = int(tile.shape[1])
+                    if h <= 0 or w <= 0:
+                        continue
+                    x, y = self.tile_positions[r][c]
+                    guide_rects.append((int(x), int(y), w, h))
+            for x, y, w, h in guide_rects:
+                x1 = min(canvas_w, x + w)
+                y1 = min(canvas_h, y + h)
+                if 0 <= y < canvas_h and x1 > x:
+                    canvas[y:min(canvas_h, y + guide_px), x:x1] = sep_val
+                if 0 < y1 <= canvas_h and x1 > x:
+                    canvas[max(0, y1 - guide_px):y1, x:x1] = sep_val
+                if 0 <= x < canvas_w and y1 > y:
+                    canvas[y:y1, x:min(canvas_w, x + guide_px)] = sep_val
+                if 0 < x1 <= canvas_w and y1 > y:
+                    canvas[y:y1, max(0, x1 - guide_px):x1] = sep_val
             return canvas
         row_boundaries = []
         col_bounds_sets = []
@@ -1588,6 +2596,8 @@ class EditorTab(QWidget):
         self.update_preview()
 
     def swap_tiles(self, a, b):
+        if not self._can_swap_tiles(a, b):
+            return
         self.undo_stack.push(SwapCommand(self, a, b))
 
     def _apply_flip(self, indices, lr, tb):
@@ -1649,29 +2659,78 @@ class EditorTab(QWidget):
         full = self._compose_preview_canvas()
         self.preview.show_image(Image.fromarray(full), fit_to_screen=False)
 
+    def _compose_tiles_canvas(self):
+        if not self.tiles:
+            return self.original_array.copy()
+        if self._has_custom_tile_positions():
+            total_h = 0
+            total_w = 0
+            for r, row in enumerate(self.tiles):
+                for c, tile in enumerate(row):
+                    h, w = tile.shape
+                    if h <= 0 or w <= 0:
+                        continue
+                    x, y = self.tile_positions[r][c]
+                    total_w = max(total_w, int(x) + int(w))
+                    total_h = max(total_h, int(y) + int(h))
+            if total_h <= 0 or total_w <= 0:
+                return np.array([], dtype=self.original_array.dtype)
+            full = np.full((total_h, total_w), self._preview_pad_value(), dtype=self.original_array.dtype)
+            for r, row in enumerate(self.tiles):
+                for c, tile in enumerate(row):
+                    h, w = tile.shape
+                    if h <= 0 or w <= 0:
+                        continue
+                    x, y = self.tile_positions[r][c]
+                    x = int(x)
+                    y = int(y)
+                    full[y:y + h, x:x + w] = tile
+            return full
+        row_heights = [max((tile.shape[0] for tile in row), default=0) for row in self.tiles]
+        total_h = sum(row_heights)
+        total_w = max((sum((tile.shape[1] for tile in row)) for row in self.tiles), default=0)
+        if total_h <= 0 or total_w <= 0:
+            return np.array([], dtype=self.original_array.dtype)
+        full = np.full((total_h, total_w), self._preview_pad_value(), dtype=self.original_array.dtype)
+        y = 0
+        for r, row in enumerate(self.tiles):
+            row_h = row_heights[r]
+            x = 0
+            for tile in row:
+                h, w = tile.shape
+                if h > 0 and w > 0:
+                    full[y:y+h, x:x+w] = tile
+                x += w
+            y += row_h
+        return full
+
     def apply(self):
-        row_images = []
-        for row_tiles in self.tiles:
-            if row_tiles:
-                row_full = np.hstack(row_tiles)
-                row_full = self.crop_left_right(row_full)
-                row_images.append(row_full)
-        if not row_images:
-            final = self.original_array
+        if self._has_custom_tile_positions():
+            full = self._compose_tiles_canvas()
+            final = self.crop_top_bottom(self.crop_left_right(full)) if full.size else self.original_array
         else:
-            max_w = max((img.shape[1] for img in row_images), default=0)
-            padded_rows = []
-            for img in row_images:
-                if img.shape[1] < max_w:
-                    pad_w = max_w - img.shape[1]
-                    pad = np.zeros((img.shape[0], pad_w), dtype=img.dtype)
-                    img = np.hstack((img, pad))
-                padded_rows.append(img)
-            full = np.vstack(padded_rows)
-            full = self.crop_top_bottom(full)
-            full = self.remove_separator_lines(full)
-            full = self.crop_top_bottom(self.crop_left_right(full))
-            final = full
+            row_images = []
+            for row_tiles in self.tiles:
+                if row_tiles:
+                    row_full = np.hstack(row_tiles)
+                    row_full = self.crop_left_right(row_full)
+                    row_images.append(row_full)
+            if not row_images:
+                final = self.original_array
+            else:
+                max_w = max((img.shape[1] for img in row_images), default=0)
+                padded_rows = []
+                for img in row_images:
+                    if img.shape[1] < max_w:
+                        pad_w = max_w - img.shape[1]
+                        pad = np.zeros((img.shape[0], pad_w), dtype=img.dtype)
+                        img = np.hstack((img, pad))
+                    padded_rows.append(img)
+                full = np.vstack(padded_rows)
+                full = self.crop_top_bottom(full)
+                full = self.remove_separator_lines(full)
+                full = self.crop_top_bottom(self.crop_left_right(full))
+                final = full
         pil_final = Image.fromarray(final)
         if self.update_source.isChecked():
             try:
@@ -1768,6 +2827,7 @@ class EditorTab(QWidget):
             new_viewer.update_display()
             new_viewer.update_histogram()
         elif source_type == 'TiledDisplay':
+            from tiled_viewer import TiledDisplay
             new_viewer = TiledDisplay(main_app)
             new_viewer.original_tiles_per_frame = [[final]]
             new_viewer.tile_rotations = [[0]]

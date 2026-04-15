@@ -5,10 +5,10 @@ from PyQt5.QtWidgets import (
     QTabWidget, QLabel, QPushButton, QSpinBox, QComboBox, QCheckBox, QToolButton,
     QRadioButton, QGroupBox, QScrollArea, QTextEdit, QSlider, QLineEdit, QApplication,
     QFileDialog, QMessageBox, QDoubleSpinBox, QFormLayout, QTabBar, QButtonGroup, QTreeWidget, QTreeWidgetItem,
-    QGraphicsDropShadowEffect, QGraphicsItemGroup, QMenu
+    QGraphicsDropShadowEffect, QGraphicsItemGroup, QMenu, QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsRectItem, QGraphicsTextItem
 )
-from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QProcess, pyqtSignal,QPropertyAnimation,QEvent, QEvent, QBuffer, QByteArray
-from PyQt5.QtGui import QImage, QPixmap, QPainter, QPainterPath,QPen,QCursor,QColor,QTextCursor,QKeySequence,QTransform, QPalette, QIcon
+from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QProcess, pyqtSignal,QPropertyAnimation,QEvent, QEvent, QBuffer, QByteArray, QSize
+from PyQt5.QtGui import QImage, QPixmap, QPainter, QPainterPath,QPen,QCursor,QColor,QTextCursor,QKeySequence,QTransform, QPalette, QIcon, QFont
 import math
 import sys
 import platform
@@ -17,6 +17,7 @@ import numpy as np
 from io import BytesIO
 import sys
 from time import time
+import json
 
 from utils import image_coords_to_latlon, check_memory_requirement
 
@@ -115,10 +116,31 @@ class MagnifierGraphicsView(QGraphicsView):
         self.grid_spacing_y = None
         self.grid_offset_x = 0.0
         self.grid_offset_y = 0.0
+        self.grid_show_box = True
+        self.grid_show_columns = True
+        self.grid_show_rows = True
         self.grid_drag_axis = None
         self.grid_drag_start_orig = None
         self.grid_drag_start_spacing = 0.0
         self.grid_line_pick_tolerance = 6
+        
+        # Mouse click mode line
+        self.mouse_click_line_enabled = False
+        self.mouse_click_line_pos = None  # QPointF for current mouse position
+        self.mouse_click_line_direction = "vertical"  # "vertical" or "horizontal"
+        self.mouse_click_cut_pos = None  # QPointF for last clicked cut position
+        self.mouse_click_line_clickable = False
+        self.crop_box_enabled = False
+        self.crop_box_rect = None  # QRectF in original image coordinates
+        self.crop_box_drag_mode = None
+        self.crop_box_drag_start = None
+        self.crop_box_initial = None
+        
+        # === Annotation Layer ===
+        self.annotations = []  # List of annotation dicts: {"type": "arrow"|"text"|"rect"|"measure", "points": [...], "color": ..., "text": ...}
+        self.annotations_visible = True
+        self.annotation_color = QColor(255, 0, 0, 200)  # Red with alpha
+        self.annotation_pen_width = 2
 
     def set_interaction_mode(self, mode: str):
         mode = str(mode).lower()
@@ -165,31 +187,211 @@ class MagnifierGraphicsView(QGraphicsView):
             self.grid_drag_axis = None
             self.grid_drag_start_orig = None
         self.viewport().update()
-    def set_grid_divisions(self, value):
-        try:
-            self.grid_divisions = max(2, min(24, int(value)))
-        except Exception:
-            self.grid_divisions = 6
-        parent = self.parent()
-        fw = int(getattr(parent, "full_width", 0)) if parent is not None else 0
-        fh = int(getattr(parent, "full_height", 0)) if parent is not None else 0
-        if fw > 1:
-            self.grid_spacing_x = max(2.0, (fw - 1) / float(self.grid_divisions))
-        if fh > 1:
-            self.grid_spacing_y = max(2.0, (fh - 1) / float(self.grid_divisions))
-        self.grid_offset_x = 0.0
-        self.grid_offset_y = 0.0
+
+    def set_easy_grid_options(self, show_box=None, show_columns=None, show_rows=None):
+        if show_box is not None:
+            self.grid_show_box = bool(show_box)
+        if show_columns is not None:
+            self.grid_show_columns = bool(show_columns)
+        if show_rows is not None:
+            self.grid_show_rows = bool(show_rows)
+        if not self.grid_show_box:
+            self.grid_show_columns = False
+            self.grid_show_rows = False
         self.viewport().update()
-    def _ensure_grid_defaults(self):
+    def set_grid_divisions(self, divisions):
+        self.grid_divisions = max(1, min(24, int(divisions)))
+        self._sync_grid_spacing()
+        self.viewport().update()
+    def set_mouse_click_mode(self, enabled, direction="vertical", clickable=False):
+        """Enable/disable mouse click mode with line following cursor."""
+        self.mouse_click_line_enabled = bool(enabled)
+        self.mouse_click_line_direction = str(direction).lower()
+        self.mouse_click_line_clickable = bool(clickable)
+        if not enabled:
+            self.mouse_click_line_pos = None
+            self.mouse_click_cut_pos = None
+        self.viewport().update()
+
+    def set_crop_box_mode(self, enabled):
+        self.crop_box_enabled = bool(enabled)
+        if self.crop_box_enabled and (self.crop_box_rect is None or self.crop_box_rect.isEmpty()):
+            self._init_crop_box_rect()
+        if not self.crop_box_enabled:
+            self.crop_box_drag_mode = None
+            self.crop_box_drag_start = None
+            self.crop_box_initial = None
+        self.viewport().update()
+
+    def _init_crop_box_rect(self):
         parent = self.parent()
         if parent is None:
             return
         fw = int(getattr(parent, "full_width", 0))
         fh = int(getattr(parent, "full_height", 0))
-        if fw > 1 and (self.grid_spacing_x is None or self.grid_spacing_x <= 1):
-            self.grid_spacing_x = max(2.0, (fw - 1) / float(max(2, self.grid_divisions)))
-        if fh > 1 and (self.grid_spacing_y is None or self.grid_spacing_y <= 1):
-            self.grid_spacing_y = max(2.0, (fh - 1) / float(max(2, self.grid_divisions)))
+        if fw <= 0 or fh <= 0:
+            return
+        inset_x = min(max(12.0, float(fw) * 0.1), max(1.0, float(fw) / 3.0))
+        inset_y = min(max(12.0, float(fh) * 0.1), max(1.0, float(fh) / 3.0))
+        self.crop_box_rect = QRectF(
+            inset_x,
+            inset_y,
+            max(1.0, float(fw) - 2.0 * inset_x),
+            max(1.0, float(fh) - 2.0 * inset_y),
+        )
+        self._clamp_crop_box()
+
+    def _pick_crop_box_hit(self, x, y):
+        if not self.crop_box_enabled or self.crop_box_rect is None:
+            return None
+        rect = self.crop_box_rect
+        scale = max(0.05, abs(self.transform().m11()))
+        tol = max(8.0 / scale, min(40.0 / scale, max(rect.width(), rect.height()) * 0.02))
+        left = abs(x - rect.left()) <= tol
+        right = abs(x - rect.right()) <= tol
+        top = abs(y - rect.top()) <= tol
+        bottom = abs(y - rect.bottom()) <= tol
+        if left and top:
+            return "top-left"
+        if right and top:
+            return "top-right"
+        if left and bottom:
+            return "bottom-left"
+        if right and bottom:
+            return "bottom-right"
+        if left:
+            return "left"
+        if right:
+            return "right"
+        if top:
+            return "top"
+        if bottom:
+            return "bottom"
+        return None
+
+    def _cursor_for_crop_hit(self, hit):
+        if hit in ("top-left", "bottom-right"):
+            return Qt.SizeFDiagCursor
+        if hit in ("top-right", "bottom-left"):
+            return Qt.SizeBDiagCursor
+        if hit in ("left", "right"):
+            return Qt.SizeHorCursor
+        if hit in ("top", "bottom"):
+            return Qt.SizeVerCursor
+        return Qt.ArrowCursor
+
+    def _clamp_crop_box(self):
+        parent = self.parent()
+        if parent is None or self.crop_box_rect is None:
+            return
+        fw = int(getattr(parent, "full_width", 0))
+        fh = int(getattr(parent, "full_height", 0))
+        if fw <= 0 or fh <= 0:
+            return
+        r = QRectF(self.crop_box_rect)
+        if r.left() < 0:
+            r.setLeft(0)
+        if r.top() < 0:
+            r.setTop(0)
+        if r.right() > fw:
+            r.setRight(fw)
+        if r.bottom() > fh:
+            r.setBottom(fh)
+        if r.width() < 1:
+            r.setRight(r.left() + 1)
+        if r.height() < 1:
+            r.setBottom(r.top() + 1)
+        self.crop_box_rect = r
+
+    def get_crop_box_bounds(self):
+        if not self.crop_box_enabled or self.crop_box_rect is None:
+            return None
+        self._clamp_crop_box()
+        rect = self.crop_box_rect.normalized()
+        left = int(math.floor(rect.left()))
+        top = int(math.floor(rect.top()))
+        right = int(math.ceil(rect.right()))
+        bottom = int(math.ceil(rect.bottom()))
+        if right <= left:
+            right = left + 1
+        if bottom <= top:
+            bottom = top + 1
+        return (left, top, right, bottom)
+
+    def _get_grid_rect(self):
+        parent = self.parent()
+        if parent is None:
+            return None
+        fw = int(getattr(parent, "full_width", 0))
+        fh = int(getattr(parent, "full_height", 0))
+        if fw <= 0 or fh <= 0:
+            return None
+        if self.grid_show_box and self.crop_box_enabled and self.crop_box_rect is not None:
+            rect = self.crop_box_rect.normalized()
+            return (
+                float(rect.left()),
+                float(rect.top()),
+                float(rect.right()),
+                float(rect.bottom()),
+            )
+        return (0.0, 0.0, float(fw - 1), float(fh - 1))
+
+    def _update_crop_box_drag(self, image_x, image_y):
+        if not self.crop_box_enabled or self.crop_box_drag_mode is None or self.crop_box_initial is None:
+            return
+        rect = QRectF(self.crop_box_initial)
+        dx = image_x - self.crop_box_drag_start.x()
+        dy = image_y - self.crop_box_drag_start.y()
+        mode = self.crop_box_drag_mode
+        min_size = 1.0
+        if "left" in mode:
+            new_left = self.crop_box_initial.left() + dx
+            if new_left > self.crop_box_initial.right() - min_size:
+                new_left = self.crop_box_initial.right() - min_size
+            rect.setLeft(new_left)
+        if "right" in mode:
+            new_right = self.crop_box_initial.right() + dx
+            if new_right < self.crop_box_initial.left() + min_size:
+                new_right = self.crop_box_initial.left() + min_size
+            rect.setRight(new_right)
+        if "top" in mode:
+            new_top = self.crop_box_initial.top() + dy
+            if new_top > self.crop_box_initial.bottom() - min_size:
+                new_top = self.crop_box_initial.bottom() - min_size
+            rect.setTop(new_top)
+        if "bottom" in mode:
+            new_bottom = self.crop_box_initial.bottom() + dy
+            if new_bottom < self.crop_box_initial.top() + min_size:
+                new_bottom = self.crop_box_initial.top() + min_size
+            rect.setBottom(new_bottom)
+        self.crop_box_rect = rect
+        self._clamp_crop_box()
+        self.viewport().update()
+    def _sync_grid_spacing(self):
+        bounds = self._get_grid_rect()
+        if bounds is None:
+            return
+        left, top, right, bottom = bounds
+        width = max(1.0, float(right) - float(left))
+        height = max(1.0, float(bottom) - float(top))
+        if width > 1:
+            self.grid_spacing_x = max(2.0, width / float(max(1, self.grid_divisions)))
+        if height > 1:
+            self.grid_spacing_y = max(2.0, height / float(max(1, self.grid_divisions)))
+        self.grid_offset_x = 0.0
+        self.grid_offset_y = 0.0
+
+    def _ensure_grid_defaults(self):
+        bounds = self._get_grid_rect()
+        if bounds is None:
+            return
+        left, top, right, bottom = bounds
+        width = max(1.0, float(right) - float(left))
+        height = max(1.0, float(bottom) - float(top))
+        if width > 1 and (self.grid_spacing_x is None or self.grid_spacing_x <= 1):
+            self.grid_spacing_x = max(2.0, width / float(max(1, self.grid_divisions)))
+        if height > 1 and (self.grid_spacing_y is None or self.grid_spacing_y <= 1):
+            self.grid_spacing_y = max(2.0, height / float(max(1, self.grid_divisions)))
         self.grid_offset_x = 0.0
         self.grid_offset_y = 0.0
     def _iter_grid_positions(self, max_value, spacing, offset):
@@ -215,7 +417,8 @@ class MagnifierGraphicsView(QGraphicsView):
         else:
             dist = float(spacing) - rel
             nearest = float(value) + dist
-        if nearest <= 1.0 or nearest >= (max_value - 1.0):
+        # Allow selection of outer border lines as well.
+        if nearest < 0.0 or nearest > max_value:
             return None
         return abs(dist)
     def _pick_grid_axis(self, ox, oy):
@@ -226,11 +429,19 @@ class MagnifierGraphicsView(QGraphicsView):
         fh = int(getattr(parent, "full_height", 0))
         if fw <= 1 or fh <= 1:
             return None
+        bounds = self._get_grid_rect()
+        if bounds is None:
+            return None
         self._ensure_grid_defaults()
         scale = max(0.05, abs(self.transform().m11()))
         tol_orig = max(1.2, float(self.grid_line_pick_tolerance) / scale)
-        dx = self._nearest_grid_distance(ox, fw - 1, self.grid_spacing_x, 0.0)
-        dy = self._nearest_grid_distance(oy, fh - 1, self.grid_spacing_y, 0.0)
+        left, top, right, bottom = bounds
+        dx = None
+        dy = None
+        if self.grid_show_columns and top - tol_orig <= oy <= bottom + tol_orig:
+            dx = self._nearest_grid_distance(ox, right, self.grid_spacing_x, left)
+        if self.grid_show_rows and left - tol_orig <= ox <= right + tol_orig:
+            dy = self._nearest_grid_distance(oy, bottom, self.grid_spacing_y, top)
         if dx is None and dy is None:
             return None
         if dx is not None and dx <= tol_orig and (dy is None or dx <= dy):
@@ -245,6 +456,9 @@ class MagnifierGraphicsView(QGraphicsView):
         fw = int(getattr(parent, "full_width", 0))
         fh = int(getattr(parent, "full_height", 0))
         if fw <= 1 or fh <= 1:
+            return
+        bounds = self._get_grid_rect()
+        if bounds is None:
             return
         self._ensure_grid_defaults()
         line_shadow = QPen(QColor(0, 0, 0, 80), 1)
@@ -262,19 +476,57 @@ class MagnifierGraphicsView(QGraphicsView):
             painter.setPen(main_pen)
             painter.drawLine(p1_view, p2_view)
 
-        max_x = fw - 1
-        max_y = fh - 1
-        draw_line(0, 0, max_x, 0, border_shadow, border_main)
-        draw_line(0, max_y, max_x, max_y, border_shadow, border_main)
-        draw_line(0, 0, 0, max_y, border_shadow, border_main)
-        draw_line(max_x, 0, max_x, max_y, border_shadow, border_main)
+        left, top, right, bottom = bounds
+        if self.grid_show_box:
+            draw_line(left, top, right, top, border_shadow, border_main)
+            draw_line(left, bottom, right, bottom, border_shadow, border_main)
+            draw_line(left, top, left, bottom, border_shadow, border_main)
+            draw_line(right, top, right, bottom, border_shadow, border_main)
 
-        x_positions = self._iter_grid_positions(max_x, self.grid_spacing_x, 0.0)
-        y_positions = self._iter_grid_positions(max_y, self.grid_spacing_y, 0.0)
-        for x in x_positions:
-            draw_line(x, 0, x, max_y, line_shadow, line_main)
-        for y in y_positions:
-            draw_line(0, y, max_x, y, line_shadow, line_main)
+        if self.grid_show_columns:
+            x_positions = self._iter_grid_positions(right, self.grid_spacing_x, left)
+            for x in x_positions:
+                if left < x < right:
+                    draw_line(x, top, x, bottom, line_shadow, line_main)
+        if self.grid_show_rows:
+            y_positions = self._iter_grid_positions(bottom, self.grid_spacing_y, top)
+            for y in y_positions:
+                if top < y < bottom:
+                    draw_line(left, y, right, y, line_shadow, line_main)
+
+    def _draw_crop_box_overlay(self, painter):
+        if not self.crop_box_enabled or self.crop_box_rect is None:
+            return
+        parent = self.parent()
+        if parent is None:
+            return
+        rect = self.crop_box_rect
+        top_left_scene = parent.map_original_to_scene(rect.left(), rect.top())
+        bottom_right_scene = parent.map_original_to_scene(rect.right(), rect.bottom())
+        top_left_view = QPointF(self.mapFromScene(top_left_scene))
+        bottom_right_view = QPointF(self.mapFromScene(bottom_right_scene))
+        view_rect = QRectF(top_left_view, bottom_right_view).normalized()
+        overlay_brush = QColor(0, 200, 255, 35)
+        painter.fillRect(view_rect, overlay_brush)
+        pen = QPen(QColor(0, 220, 255, 230), 2)
+        painter.setPen(pen)
+        painter.drawRect(view_rect)
+        handle_size = 8
+        half = handle_size / 2.0
+        handles = [
+            view_rect.topLeft(),
+            view_rect.topRight(),
+            view_rect.bottomLeft(),
+            view_rect.bottomRight(),
+            QPointF(view_rect.center().x(), view_rect.top()),
+            QPointF(view_rect.center().x(), view_rect.bottom()),
+            QPointF(view_rect.left(), view_rect.center().y()),
+            QPointF(view_rect.right(), view_rect.center().y()),
+        ]
+        painter.setBrush(QColor(0, 220, 255, 220))
+        for handle in handles:
+            painter.drawRect(QRectF(handle.x() - half, handle.y() - half, handle_size, handle_size))
+
     def wheelEvent(self, event):
         # allow zoom with Ctrl+wheel OR when the viewer's Mouse Zoom checkbox is enabled
         mouse_zoom_flag = getattr(self.parent(), "mouse_zoom_enabled", False)
@@ -306,6 +558,23 @@ class MagnifierGraphicsView(QGraphicsView):
             mouse_scene = self.mapToScene(event.pos())
             local_x, local_y = self.parent().get_original_coords(mouse_scene)
             x, y = math.floor(local_x), math.floor(local_y)
+            if self.crop_box_enabled and not (self.measure_enabled or self.calculate_enabled):
+                hit = self._pick_crop_box_hit(local_x, local_y)
+                if hit is not None:
+                    self.crop_box_drag_mode = hit
+                    self.crop_box_drag_start = QPointF(local_x, local_y)
+                    self.crop_box_initial = QRectF(self.crop_box_rect) if self.crop_box_rect is not None else None
+                    self.setCursor(self._cursor_for_crop_hit(hit))
+                    event.accept()
+                    return
+            if self.mouse_click_line_enabled and self.mouse_click_line_clickable and not self.grid_enabled and not self.measure_enabled and not self.calculate_enabled:
+                self.mouse_click_cut_pos = QPointF(local_x, local_y)
+                parent_viewer = self.parent()
+                if hasattr(parent_viewer, 'on_guru_cut'):
+                    parent_viewer.on_guru_cut(self.mouse_click_line_direction, x, y)
+                self.viewport().update()
+                event.accept()
+                return
             if self.grid_enabled and not (self.measure_enabled or self.calculate_enabled):
                 axis = self._pick_grid_axis(local_x, local_y)
                 if axis is not None:
@@ -404,16 +673,39 @@ class MagnifierGraphicsView(QGraphicsView):
                 return
         
         elif event.button() == Qt.RightButton:
-            print("right click")
+            mouse_scene = self.mapToScene(event.pos())
+            local_x, local_y = self.parent().get_original_coords(mouse_scene)
+            if not self.grid_enabled and not (self.measure_enabled or self.calculate_enabled):
+                self.grid_enabled = True
+                self.grid_divisions = max(1, self.grid_divisions)
+                self._sync_grid_spacing()
+                self.viewport().update()
+                event.accept()
+                return
+            if self.grid_enabled and not (self.measure_enabled or self.calculate_enabled):
+                if not self.grid_show_columns and not self.grid_show_rows:
+                    event.accept()
+                    return
+                axis = self._pick_grid_axis(local_x, local_y)
+                if axis is not None:
+                    if self.grid_divisions > 1:
+                        self.grid_divisions -= 1
+                        self._sync_grid_spacing()
+                    self.viewport().update()
+                    event.accept()
+                    return
+                else:
+                    if self.grid_divisions < 24:
+                        self.grid_divisions += 1
+                        self._sync_grid_spacing()
+                        self.viewport().update()
+                        event.accept()
+                        return
             if self.magnifier_enabled:
-                mouse_scene = self.mapToScene(event.pos())
-                local_x, local_y = self.parent().get_original_coords(mouse_scene)
                 self.magnifier_center = QPointF(local_x, local_y)
                 self.cached_pixmap = None # Invalidate cache
                 self.cached_source_scene = None
                 self.viewport().update()
-            mouse_scene = self.mapToScene(event.pos())
-            local_x, local_y = self.parent().get_original_coords(mouse_scene)
             x, y = math.floor(local_x), math.floor(local_y)
         
         elif event.button() == Qt.MiddleButton:
@@ -438,27 +730,44 @@ class MagnifierGraphicsView(QGraphicsView):
             return
         mouse_scene = self.mapToScene(event.pos())
         image_x, image_y = self.parent().get_original_coords(mouse_scene)
+        
+        # Update mouse click line position
+        if self.mouse_click_line_enabled:
+            self.mouse_click_line_pos = QPointF(image_x, image_y)
+            self.viewport().update()
+        
+        if self.crop_box_enabled and self.crop_box_drag_mode and (event.buttons() & Qt.LeftButton):
+            self._update_crop_box_drag(image_x, image_y)
+            self.setCursor(self._cursor_for_crop_hit(self.crop_box_drag_mode))
+            event.accept()
+            return
+
         if self.grid_enabled and self.grid_drag_axis and (event.buttons() & Qt.LeftButton):
             self._ensure_grid_defaults()
             start = self.grid_drag_start_orig or (float(image_x), float(image_y))
-            parent = self.parent()
-            fw = int(getattr(parent, "full_width", 0)) if parent is not None else 0
-            fh = int(getattr(parent, "full_height", 0)) if parent is not None else 0
-            if self.grid_drag_axis == "x" and self.grid_spacing_x and self.grid_spacing_x > 0 and fw > 1:
-                min_spacing = max(2.0, (fw - 1) / 24.0)
-                max_spacing = max(min_spacing, (fw - 1) / 2.0)
+            bounds = self._get_grid_rect()
+            if bounds is None:
+                return
+            left, top, right, bottom = bounds
+            width = max(1.0, float(right) - float(left))
+            height = max(1.0, float(bottom) - float(top))
+            if self.grid_drag_axis == "x" and self.grid_spacing_x and self.grid_spacing_x > 0 and width > 1:
+                min_spacing = max(2.0, width / 24.0)
+                max_spacing = max(min_spacing, width)
                 delta = float(image_x) - float(start[0])
                 spacing_axis = max(min_spacing, min(max_spacing, float(self.grid_drag_start_spacing) + delta))
-                self.grid_divisions = int(max(2, min(24, round((fw - 1) / max(1.0, spacing_axis)))))
-                self.grid_spacing_x = max(2.0, (fw - 1) / float(self.grid_divisions))
+                ratio = width / max(1.0, spacing_axis)
+                self.grid_divisions = int(max(1, min(24, math.ceil(ratio - 1e-9))))
+                self._sync_grid_spacing()
                 self.setCursor(Qt.SizeHorCursor)
-            elif self.grid_drag_axis == "y" and self.grid_spacing_y and self.grid_spacing_y > 0 and fh > 1:
-                min_spacing = max(2.0, (fh - 1) / 24.0)
-                max_spacing = max(min_spacing, (fh - 1) / 2.0)
+            elif self.grid_drag_axis == "y" and self.grid_spacing_y and self.grid_spacing_y > 0 and height > 1:
+                min_spacing = max(2.0, height / 24.0)
+                max_spacing = max(min_spacing, height)
                 delta = float(image_y) - float(start[1])
                 spacing_axis = max(min_spacing, min(max_spacing, float(self.grid_drag_start_spacing) + delta))
-                self.grid_divisions = int(max(2, min(24, round((fh - 1) / max(1.0, spacing_axis)))))
-                self.grid_spacing_y = max(2.0, (fh - 1) / float(self.grid_divisions))
+                ratio = height / max(1.0, spacing_axis)
+                self.grid_divisions = int(max(1, min(24, math.ceil(ratio - 1e-9))))
+                self._sync_grid_spacing()
                 self.setCursor(Qt.SizeVerCursor)
             self.viewport().update()
             self.last_update_time = current_time
@@ -475,6 +784,10 @@ class MagnifierGraphicsView(QGraphicsView):
                 grid_cursor = Qt.SizeHorCursor
             elif axis == "y":
                 grid_cursor = Qt.SizeVerCursor
+        if self.crop_box_enabled and not self.crop_box_drag_mode:
+            crop_hit = self._pick_crop_box_hit(image_x, image_y)
+            if crop_hit is not None:
+                grid_cursor = self._cursor_for_crop_hit(crop_hit)
         if self.magnifier_enabled:
             # Get visual center for interaction
             scene_center = self.parent().map_original_to_scene(self.magnifier_center.x(), self.magnifier_center.y())
@@ -557,6 +870,13 @@ class MagnifierGraphicsView(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
+            if self.crop_box_drag_mode is not None:
+                self.crop_box_drag_mode = None
+                self.crop_box_drag_start = None
+                self.crop_box_initial = None
+                self.setCursor(Qt.ArrowCursor)
+                event.accept()
+                return
             if self.grid_drag_axis is not None:
                 self.grid_drag_axis = None
                 self.grid_drag_start_orig = None
@@ -813,6 +1133,13 @@ class MagnifierGraphicsView(QGraphicsView):
                 self._draw_grid_overlay(painter)
             finally:
                 painter.end()
+        if self.crop_box_enabled and self.crop_box_rect is not None:
+            painter = QPainter(self.viewport())
+            try:
+                painter.setRenderHint(QPainter.Antialiasing, True)
+                self._draw_crop_box_overlay(painter)
+            finally:
+                painter.end()
         if not self.magnifier_enabled or not self.scene().items():
             pass
         else:
@@ -950,36 +1277,184 @@ class MagnifierGraphicsView(QGraphicsView):
                     pen_ob = QPen(QColor(0, 0, 255), 2, Qt.DashLine) # Blue, dashed
                     painter.setPen(pen_ob)
                     painter.drawLine(o_view, p2_view)
-                    # Optional: draw a small cyan dot at O for visibility
-                    painter.setBrush(QColor(0, 255, 255)) # Cyan fill
-                    painter.setPen(Qt.NoPen)
-                    painter.drawEllipse(o_view, 4, 4) # Larger dot at O
             finally:
                 painter.end()
-        if self.calculate_enabled:
+        
+        # === Draw Mouse Click Line ===
+        if self.mouse_click_line_enabled and self.mouse_click_line_pos is not None:
             painter = QPainter(self.viewport())
             try:
                 painter.setRenderHint(QPainter.Antialiasing, True)
-                rect_pair = None
-                if self.calculate_drag_active and self.calculate_start_scene and self.calculate_current_scene:
-                    rect_pair = (self.calculate_start_scene, self.calculate_current_scene)
-                elif self.last_calculate_rect is not None:
-                    rect_pair = self.last_calculate_rect
-                if rect_pair is not None:
-                    p1_view = self.mapFromScene(rect_pair[0])
-                    p2_view = self.mapFromScene(rect_pair[1])
-                    draw_rect = QRect(
-                        min(p1_view.x(), p2_view.x()),
-                        min(p1_view.y(), p2_view.y()),
-                        abs(p1_view.x() - p2_view.x()),
-                        abs(p1_view.y() - p2_view.y())
+                # Draw line following mouse cursor
+                line_color = QColor(255, 0, 255, 255)  # Magenta with full alpha
+                pen = QPen(line_color, 4, Qt.DashLine)  # Thicker line
+                painter.setPen(pen)
+                
+                # Convert image coordinates to view coordinates
+                line_scene = self.parent().map_original_to_scene(
+                    self.mouse_click_line_pos.x(), self.mouse_click_line_pos.y()
+                )
+                line_view = self.mapFromScene(line_scene)
+                
+                if self.mouse_click_line_direction == "vertical":
+                    painter.drawLine(
+                        QPointF(line_view.x(), 0),
+                        QPointF(line_view.x(), self.viewport().height())
                     )
-                    pen = QPen(QColor(255, 165, 0), 2, Qt.DashLine)
-                    painter.setPen(pen)
-                    painter.setBrush(QColor(255, 165, 0, 50))
-                    painter.drawRect(draw_rect)
+                else:  # horizontal
+                    painter.drawLine(
+                        QPointF(0, line_view.y()),
+                        QPointF(self.viewport().width(), line_view.y())
+                    )
             finally:
                 painter.end()
+
+        if self.mouse_click_cut_pos is not None:
+            painter = QPainter(self.viewport())
+            try:
+                painter.setRenderHint(QPainter.Antialiasing, True)
+                cut_color = QColor(255, 0, 255, 255)
+                cut_pen = QPen(cut_color, 3, Qt.SolidLine)
+                painter.setPen(cut_pen)
+                cut_scene = self.parent().map_original_to_scene(
+                    self.mouse_click_cut_pos.x(), self.mouse_click_cut_pos.y()
+                )
+                cut_view = self.mapFromScene(cut_scene)
+                if self.mouse_click_line_direction == "vertical":
+                    painter.drawLine(
+                        QPointF(cut_view.x(), 0),
+                        QPointF(cut_view.x(), self.viewport().height())
+                    )
+                else:
+                    painter.drawLine(
+                        QPointF(0, cut_view.y()),
+                        QPointF(self.viewport().width(), cut_view.y())
+                    )
+            finally:
+                painter.end()
+        
+        # === Draw Annotations ===
+        if self.annotations and self.annotations_visible:
+            painter = QPainter(self.viewport())
+            try:
+                painter.setRenderHint(QPainter.Antialiasing, True)
+                for ann in self.annotations:
+                    self.draw_annotation(painter, ann)
+            finally:
+                painter.end()
+    
+    # ============ Annotation Layer ============
+    def add_annotation(self, annotation_dict):
+        """Add annotation: {"type": "arrow"|"text"|"rect"|"measure", "p1": ..., "p2": ..., "color": ..., "text": ...}"""
+        self.annotations.append(annotation_dict)
+        self.viewport().update()
+    
+    def clear_annotations(self):
+        """Clear all annotations."""
+        self.annotations = []
+        self.viewport().update()
+    
+    def toggle_annotations(self):
+        """Toggle annotation visibility."""
+        self.annotations_visible = not self.annotations_visible
+        self.viewport().update()
+    
+    def draw_annotation(self, painter, ann):
+        """Draw a single annotation on the painter."""
+        if not self.annotations_visible or not ann:
+            return
+        
+        ann_type = ann.get("type", "arrow")
+        color = QColor(ann.get("color", "#FF0000"))
+        pen = QPen(color, self.annotation_pen_width)
+        painter.setPen(pen)
+        
+        try:
+            if ann_type == "arrow":
+                # Draw line with arrowhead
+                p1 = ann.get("p1", QPointF(0, 0))
+                p2 = ann.get("p2", QPointF(10, 10))
+                painter.drawLine(p1, p2)
+                # Simple arrowhead
+                angle = math.atan2(p2.y() - p1.y(), p2.x() - p1.x())
+                arrow_size = 15
+                p2_1 = QPointF(p2.x() - arrow_size * math.cos(angle - math.pi / 6),
+                               p2.y() - arrow_size * math.sin(angle - math.pi / 6))
+                p2_2 = QPointF(p2.x() - arrow_size * math.cos(angle + math.pi / 6),
+                               p2.y() - arrow_size * math.sin(angle + math.pi / 6))
+                painter.drawLine(p2, p2_1)
+                painter.drawLine(p2, p2_2)
+            
+            elif ann_type == "rect":
+                rect = QRectF(ann.get("rect", QRectF(0, 0, 50, 50)))
+                painter.drawRect(rect)
+            
+            elif ann_type == "measure":
+                # Line with distance text
+                p1 = ann.get("p1", QPointF(0, 0))
+                p2 = ann.get("p2", QPointF(10, 10))
+                painter.drawLine(p1, p2)
+                dist = math.sqrt((p2.x() - p1.x())**2 + (p2.y() - p1.y())**2)
+                mid = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
+                font = QFont()
+                font.setPointSize(8)
+                painter.setFont(font)
+                painter.drawText(int(mid.x()), int(mid.y()), f"{dist:.1f}px")
+            
+            elif ann_type == "text":
+                font = QFont()
+                font.setPointSize(10)
+                painter.setFont(font)
+                pos = ann.get("pos", QPointF(0, 0))
+                text = ann.get("text", "Label")
+                painter.drawText(int(pos.x()), int(pos.y()), text)
+        except Exception:
+            pass  # Silently skip malformed annotations
+    
+    def save_annotations_json(self, filepath):
+        """Save annotations to JSON file (JSON-serializable dicts)."""
+        try:
+            serializable = []
+            for ann in self.annotations:
+                sann = ann.copy()
+                # Convert QPointF/QRectF to dicts for JSON
+                if "p1" in sann and isinstance(sann["p1"], QPointF):
+                    sann["p1"] = {"x": sann["p1"].x(), "y": sann["p1"].y()}
+                if "p2" in sann and isinstance(sann["p2"], QPointF):
+                    sann["p2"] = {"x": sann["p2"].x(), "y": sann["p2"].y()}
+                if "pos" in sann and isinstance(sann["pos"], QPointF):
+                    sann["pos"] = {"x": sann["pos"].x(), "y": sann["pos"].y()}
+                if "rect" in sann and isinstance(sann["rect"], QRectF):
+                    r = sann["rect"]
+                    sann["rect"] = {"x": r.x(), "y": r.y(), "w": r.width(), "h": r.height()}
+                serializable.append(sann)
+            with open(filepath, 'w') as f:
+                json.dump(serializable, f, indent=2)
+        except Exception as e:
+            print(f"Failed to save annotations: {e}")
+    
+    def load_annotations_json(self, filepath):
+        """Load annotations from JSON file."""
+        try:
+            with open(filepath, 'r') as f:
+                serializable = json.load(f)
+            self.annotations = []
+            for sann in serializable:
+                ann = sann.copy()
+                # Convert dicts back to QPointF/QRectF
+                if isinstance(ann.get("p1"), dict):
+                    ann["p1"] = QPointF(ann["p1"]["x"], ann["p1"]["y"])
+                if isinstance(ann.get("p2"), dict):
+                    ann["p2"] = QPointF(ann["p2"]["x"], ann["p2"]["y"])
+                if isinstance(ann.get("pos"), dict):
+                    ann["pos"] = QPointF(ann["pos"]["x"], ann["pos"]["y"])
+                if isinstance(ann.get("rect"), dict):
+                    r = ann["rect"]
+                    ann["rect"] = QRectF(r["x"], r["y"], r["w"], r["h"])
+                self.annotations.append(ann)
+            self.viewport().update()
+        except Exception as e:
+            print(f"Failed to load annotations: {e}")
 
 class GraphicsImageViewer(QWidget):
     def __init__(self, parent=None, pixel_info_callback=None, matrix_size_var=None, click_callback=None):
@@ -2040,6 +2515,13 @@ class GraphicsImageViewer(QWidget):
         # Clear any stale raw data cache; callers can set this after show_image.
         self.original_raw_data = None
         self.full_width, self.full_height = pil_copy.size
+        # Ensure grid defaults if grid is enabled
+        if self.graphics_view.grid_enabled:
+            self.graphics_view._ensure_grid_defaults()
+        if self.graphics_view.crop_box_enabled and (
+            self.graphics_view.crop_box_rect is None or self.graphics_view.crop_box_rect.isEmpty()
+        ):
+            self.graphics_view._init_crop_box_rect()
         # Compute frame_h
         parent_app = self.parent()
         while parent_app and not (hasattr(parent_app, 'gap_var') and hasattr(parent_app, 'height_entry') and hasattr(parent_app, 'bands_info')):

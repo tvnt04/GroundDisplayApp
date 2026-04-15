@@ -35,11 +35,17 @@ except ImportError:
     RawViewer = None
 try:
     from tiled_viewer import TiledDisplay
-except ImportError:
+except Exception as e:
+    import traceback
+    print(f"[TiledDisplay Import Error] {e}", file=sys.stderr)
+    traceback.print_exc()
     TiledDisplay = None
 try:
     from editor_tab import EditorTab
-except ImportError:
+except Exception as e:
+    import traceback
+    print(f"[EditorTab Import Error] {e}", file=sys.stderr)
+    traceback.print_exc()
     EditorTab = None
 
 
