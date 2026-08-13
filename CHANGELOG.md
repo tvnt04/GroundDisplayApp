@@ -1,6 +1,6 @@
 # Change Log
 
-## Unreleased
+## v1.3.0
 
 ### Added
 - Dynamic band-file discovery in `band_app.py` so the loader can handle raw, binned, and split band variants instead of only fixed band indices.
