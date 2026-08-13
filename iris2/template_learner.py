@@ -41,12 +41,16 @@ import re
 import time
 import threading
 from pathlib import Path
+from app_paths import get_app_data_path, migrate_legacy_file
 from typing import Any, Dict, List, Optional, Tuple
 
 
 # ── Storage ────────────────────────────────────────────────────────────────────
 
-_DEFAULT_PATH   = os.path.join(os.path.dirname(__file__), ".iris_templates.json")
+_DEFAULT_PATH   = migrate_legacy_file(
+    get_app_data_path(".iris_templates.json"),
+    os.path.join(os.path.dirname(__file__), ".iris_templates.json")
+)
 _LOCK           = threading.Lock()
 _MIN_SAMPLES    = 3       # samples needed before flagging
 _SIGMA_INFO     = 2.5     # σ threshold for INFO flag

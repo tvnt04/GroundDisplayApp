@@ -13,6 +13,7 @@ import math
 import gc
 import shlex
 import psutil
+from app_paths import get_app_data_path, migrate_legacy_file
 import re
 import time
 import threading
@@ -291,7 +292,10 @@ def check_memory_requirement(expected_bytes, parent=None):
 
 # ---------------- Parameter persistence helpers ----------------
 PARAM_FILENAME = "parameters.json"
-PARAM_DB_PATH = os.path.join(os.path.dirname(__file__), "params.db")
+PARAM_DB_PATH = migrate_legacy_file(
+    get_app_data_path("params.db"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "params.db")
+)
 
 def _init_db():
     conn = sqlite3.connect(PARAM_DB_PATH)
@@ -315,7 +319,10 @@ import tempfile, fnmatch
 from datetime import datetime
 
 # Recent history storage
-RECENT_FILE = os.path.join(os.path.dirname(__file__), 'recent.json')
+RECENT_FILE = migrate_legacy_file(
+    get_app_data_path('recent.json'),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'recent.json')
+)
 _RECENT_LIMIT = 1000
 VALID_TDI_STAGES = {0, 2, 4, 8, 16, 32}
 
@@ -1113,7 +1120,7 @@ class TerminalWidget(QWidget):
         # History
         self._history = []
         self._hist_idx = None
-        self.history_file = os.path.expanduser("~/.xd_band_history.json")
+        self.history_file = get_app_data_path('terminal_history.json')
         self.load_history()
         self._history_limit = 500
         self._current_input = ""  # Buffer for current line input

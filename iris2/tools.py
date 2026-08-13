@@ -10,6 +10,7 @@ from PyQt5.QtCore import QTimer
 from .app_state import state, ScanResult
 from .scanner import start_scan, analyze_logs, parse_metadata, discover_band_files, detect_repeating_pattern, unpack_frame
 from .event_bus import bus, AppEvent, EventType
+from app_paths import get_app_data_path, migrate_legacy_file
 from .retrieval import (
     search_knowledge, knowledge_base_status,
     save_memory, recall_memory, memory_summary,
@@ -417,7 +418,10 @@ def tool_open_last_session(in_current_tab: bool = False) -> Dict:
     candidates = []
 
     # 1) Iris memory
-    mem_path = os.path.join(os.path.dirname(__file__), "iris_memory.json")
+    mem_path = migrate_legacy_file(
+    get_app_data_path("iris_memory.json"),
+    os.path.join(os.path.dirname(__file__), "iris_memory.json")
+)
     try:
         if os.path.exists(mem_path):
             mem = json.loads(open(mem_path, "r", encoding="utf-8").read())
@@ -433,8 +437,12 @@ def tool_open_last_session(in_current_tab: bool = False) -> Dict:
 
     # 2) last_session.json
     try:
-        if os.path.exists("last_session.json"):
-            data = json.loads(open("last_session.json", "r", encoding="utf-8").read())
+        last_session_path = migrate_legacy_file(
+        get_app_data_path("last_session.json"),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "last_session.json")
+    )
+        if os.path.exists(last_session_path):
+            data = json.loads(open(last_session_path, "r", encoding="utf-8").read())
             band = (data.get("modes", {}).get("band") or [])
             if band and isinstance(band, list):
                 st = band[0].get("state", {}) if band[0] else {}
@@ -446,8 +454,12 @@ def tool_open_last_session(in_current_tab: bool = False) -> Dict:
 
     # 4) recent.json
     try:
-        if os.path.exists("recent.json"):
-            rec = json.loads(open("recent.json", "r", encoding="utf-8").read())
+        recent_path = migrate_legacy_file(
+        get_app_data_path("recent.json"),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "recent.json")
+    )
+        if os.path.exists(recent_path):
+            rec = json.loads(open(recent_path, "r", encoding="utf-8").read())
             if isinstance(rec, list) and rec:
                 for item in rec:
                     p = (item.get("path") or "").strip()

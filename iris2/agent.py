@@ -6,6 +6,7 @@ import base64
 import urllib.request
 import urllib.error
 from pathlib import Path
+from app_paths import get_app_data_path, migrate_legacy_file
 from typing import Dict, List, Optional
 
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -804,7 +805,10 @@ class IrisSmartWorker(IrisOllamaWorker):
 
 # ── API key management ────────────────────────────────────────────────────────
 
-_KEY_FILE = Path(__file__).parent / ".iris_config.json"
+_KEY_FILE = Path(migrate_legacy_file(
+    get_app_data_path(".iris_config.json"),
+    os.path.join(os.path.dirname(__file__), ".iris_config.json")
+))
 
 
 def get_api_key() -> str:

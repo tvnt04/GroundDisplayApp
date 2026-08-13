@@ -23,6 +23,7 @@ from .tools import (
     tool_llm_log_audit, tool_run_scan
 )
 from .event_bus import bus, AppEvent, EventType
+from app_paths import get_app_data_path, migrate_legacy_file
 
 
 # ── Colours ────────────────────────────────────────────────────────────────
@@ -38,7 +39,10 @@ _ACCENT_L  = "#110f17"
 _FRAME_BTN = "#1de9b6"   # clickable frame number colour
 _BORDER    = "rgba(255,255,255,15)"
 
-_MEMORY_PATH = os.path.join(os.path.dirname(__file__), "iris_memory.json")
+_MEMORY_PATH = migrate_legacy_file(
+    get_app_data_path("iris_memory.json"),
+    os.path.join(os.path.dirname(__file__), "iris_memory.json")
+)
 
 
 class ChatInput(QTextEdit):

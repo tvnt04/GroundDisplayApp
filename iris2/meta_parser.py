@@ -8,6 +8,7 @@ import time
 import statistics
 import threading
 from pathlib import Path
+from app_paths import get_app_data_path, migrate_legacy_file
 from typing import Dict, List, Optional, Tuple, Any
 
 
@@ -498,7 +499,10 @@ def detect_mission_type(log_content: str, log_summary: Dict = None,
 # TEMPLATE LEARNER
 # ══════════════════════════════════════════════════════════════════════════════
 
-_LEARNER_FILE = os.path.join(os.path.dirname(__file__), ".iris_templates.json")
+_LEARNER_FILE = migrate_legacy_file(
+    get_app_data_path(".iris_templates.json"),
+    os.path.join(os.path.dirname(__file__), ".iris_templates.json")
+)
 _learner_lock = threading.Lock()
 
 

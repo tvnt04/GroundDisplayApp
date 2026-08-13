@@ -17,6 +17,7 @@ import gzip
 import sqlite3
 import hashlib
 from pathlib import Path
+from app_paths import get_app_data_path, migrate_legacy_file
 
 from .event_bus import bus, AppEvent, EventType
 
@@ -104,11 +105,13 @@ class _ScanCache:
     """Thread-safe SQLite cache for ScanResult objects. Used internally by AppState."""
 
     def __init__(self):
-        pkg_dir = Path(__file__).parent
-        candidate = pkg_dir / _DB_FILENAME
+        candidate = Path(migrate_legacy_file(
+            get_app_data_path(_DB_FILENAME),
+            os.path.join(os.path.dirname(__file__), _DB_FILENAME)
+        ))
         try:
             candidate.parent.mkdir(parents=True, exist_ok=True)
-            candidate.touch()
+            candidate.touch(exist_ok=True)
             self._path = str(candidate)
         except OSError:
             fb = Path.home() / ".iris" / _DB_FILENAME
@@ -313,8 +316,10 @@ class AppState:
         self._active_tab_index: int = 0
         self._scan_results: Dict[str, ScanResult] = {}
         self._report_cache: Dict[str, Dict] = {}
-        self._report_cache_file = os.path.join(
-            os.path.dirname(__file__), ".iris_reports.json.gz")
+        self._report_cache_file = migrate_legacy_file(
+            get_app_data_path(".iris_reports.json.gz"),
+            os.path.join(os.path.dirname(__file__), ".iris_reports.json.gz")
+        )
         self._report_cache_max = 200
         self._stale_reason: Dict[str, str] = {}
         self._histogram: Optional[HistogramState] = None

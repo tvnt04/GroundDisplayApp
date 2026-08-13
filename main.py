@@ -15,6 +15,7 @@ import json
 import os
 import tempfile
 import psutil
+from app_paths import get_app_data_path, migrate_legacy_file
 from ui_components import *
 from utils import TerminalWidget
 from help_tab import create_help_tab
@@ -379,7 +380,7 @@ class SecondaryMonitorWindow(QMainWindow):
     def __init__(self, main_app):
         super().__init__(main_app)
         self.main_app = main_app
-        self.setWindowTitle("DisplayGround-Gold - Screen 2")
+        self.setWindowTitle("Display X Studio - Screen 2")
         self.resize(1280, 800)
 
         central = QWidget(self)
@@ -425,8 +426,11 @@ class SecondaryMonitorWindow(QMainWindow):
 class MainApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.session_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_session.json")
-        self.setWindowTitle("DisplayGround-Gold")
+        self.session_file = migrate_legacy_file(
+            get_app_data_path("last_session.json"),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_session.json")
+        )
+        self.setWindowTitle("Display X Studio")
         self.resize(1280, 800)
 
         central_widget = QWidget()

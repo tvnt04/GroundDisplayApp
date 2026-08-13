@@ -15,7 +15,9 @@ import time
 import subprocess
 from datetime import datetime
 import glob
+import platform
 from help_tab import create_help_tab
+from app_paths import get_app_data_path
 
 class VideoModeHandler(QWidget):
     start_play_signal = pyqtSignal()  # Signal to start playback in GUI thread
@@ -58,16 +60,23 @@ class VideoModeHandler(QWidget):
         self.load_video()
 
     def _default_capture_dir(self):
-        # Use an OS-appropriate default capture directory.
-        if os.name == "nt":
-            return os.path.join(os.path.expanduser("~"), "Pictures", "Display X Studio", "Capture")
-        return "/opt/KAYA_Instruments/Examples/Vision Point API/Display_live/Capture"
+        # Use a portable default capture directory under the user's home.
+        pictures = os.path.join(os.path.expanduser("~"), "Pictures")
+        if not os.path.isdir(pictures):
+            pictures = os.path.expanduser("~")
+        return os.path.join(pictures, "Display X Studio", "Capture")
 
     def _resolve_camera_binary(self):
-        # Support both Linux and Windows camera helper binaries.
+        # Support Linux, Windows, and macOS helper layouts.
         cam_dir = os.path.dirname(__file__)
         candidates = []
-        if os.name == "nt":
+        if sys.platform == "darwin":
+            candidates.extend([
+                os.path.join(cam_dir, "Xdlinx_Cam"),
+                os.path.join(cam_dir, "Xdlinx_Cam.bin"),
+                os.path.join(cam_dir, "Xdlinx_Cam.app", "Contents", "MacOS", "Xdlinx_Cam"),
+            ])
+        elif os.name == "nt":
             candidates.extend([
                 os.path.join(cam_dir, "Xdlinx_Cam.exe"),
                 os.path.join(cam_dir, "Xdlinx_Cam"),
@@ -102,7 +111,7 @@ class VideoModeHandler(QWidget):
             QMessageBox.critical(self, title, text)
 
     def createLogFile(self):
-        log_dir = os.path.join(os.getcwd(), "logs")
+        log_dir = get_app_data_path("logs")
         os.makedirs(log_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_file_path = os.path.join(log_dir, f"output_log_{timestamp}.txt")
