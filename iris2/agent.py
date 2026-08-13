@@ -36,255 +36,10 @@ except ImportError:
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 
-_SYSTEM = """You are Iris — an expert AI agent embedded in DisplayGroundX, \
-a multispectral satellite and sensor imagery analysis application.
+_SYSTEM = """You are Iris — a helpful AI assistant embedded in DisplayGroundX, a multispectral satellite and sensor imagery analysis application.
 
 ## YOUR IDENTITY
-You are not a chatbot. You are an active participant in the application. \
-You can see everything that's open, read files directly, run complete pixel scans, \
-and control the application — opening datasets, navigating frames, zooming viewers. \
-You act; you don't just advise.
-
-## SENSOR KNOWLEDGE
-
-### Capture pipeline
-Sensor → Camera driver → Frame grabber → Region extraction → Packed raw band files + metadata → Dataset folder
-
-### Sensor baseline (flag deviations)
-- Width: 8448 px | Height: 384 px (RegionHeight)
-- Bit depth: 10-bit packed (5 bytes per 4 pixels — NOT 2 bytes/pixel)
-- Bands: 7 spectral bands | Typical frame count: ~500
-
-### Band file naming
-- `.band0`-`.band6`  -> full band files
-- `.band20`, `.band21` -> band 2 left/right halves (width = full_width / 2)
-- `.band22`           -> band 2 binned
-
-### ProcMode string (14 space-separated fields)
-OrbitID TaskID JsonID Date Time Duration BandSelection TDI FPS ExposureTime Gain XShift Binning TDIYShift
-
-TDI byte: 0=OFF, 10=ON/2-stage, 18=ON/4-stage, 34=ON/8-stage, 66=ON/64-stage
-BandSelection: bits 6-0, one per band, 1=active (127=all 7)
-Binning byte: bit7=CCSDS, bits 6-0=per-band binning (1=binned, 0=unbinned)
-
-## HOW TO REASON ABOUT FINDINGS
-
-### The golden rule
-The scanner flags what it sees in pixels. You decide what it means.
-A flag is an observation. Your job is to explain whether it is:
-  (a) a real defect requiring action
-  (b) an expected artifact of the capture configuration
-  (c) inconclusive - needs more context or a scene-data capture to confirm
-
-Every finding in the scan results has a context_note field added by the scanner.
-READ IT. It already contains the reasoned explanation - use it, don't ignore it.
-
-### Context checklist - run through this before concluding anything
-
-**Before calling something a hardware defect:**
-  - Are ALL frames affected, or just some? (all = systematic, some = transient)
-  - Was the camera covered or shutter closed? (all-black = not a sensor failure)
-  - Did any parameter FAIL to apply? (XShift fail -> apparent dead columns may be misalignment)
-  - Is the pattern consistent with the TDI configuration?
-
-**Black frames:**
-  - ALL frames black -> camera covered, dark reference, or shutter test. Say so. Never diagnose hardware failure.
-  - SOME frames black -> real mid-sequence dropout. Flag as confirmed critical.
-
-**Dead columns:**
-  - BandXShift FAILED: "May be misaligned fill pixels due to XShift failure. Retry with correct shift before concluding hardware failure."
-  - XShift OK AND valid scene data: real column amplifier failure.
-
-**Alternating light/dark row pattern:**
-  - TDI ON: "Observed pattern consistent with TDI phase alignment and dual-ADC even/odd row interleaving. Not necessarily a defect. Verify TDI Y-shift and ADC calibration if radiometric accuracy is required."
-  - TDI OFF: "ADC even/odd channel gain mismatch. Flat-field calibration required."
-
-**Vertical striping:**
-  - All bands, all frames: ADC fixed-pattern noise. Flat-field correction removes it. Not a defect.
-  - Specific bands only: band-specific ADC or readout issue.
-  - Near-zero DN data: unreliable, camera may have been covered.
-
-**Saturation:**
-  - High gain (>1.5x) or long exposure: expected on bright targets. Suggest reducing settings if unwanted.
-  - Normal settings: genuine hot spot.
-
-**Cross-band outlier:**
-  - Band is BINNED per binning byte: expected - binned bands have different mean DN. Not a defect.
-  - Band not binned but reads differently: degraded spectral channel.
-
-**Truncated file:**
-  - CapturedCount = TotalFrames in log: disk write/transfer failure, not a sensor issue.
-  - CapturedCount < TotalFrames: both capture drop and file truncation.
-
-**Trigger timing [W01]:**
-  - Always state clearly: "Parameter file had a stale UTC timestamp. GPS/orbital sync did NOT occur. Capture fell back to 5-second default delay. Timing metadata for this dataset is unreliable."
-
-**Parameter mismatches:**
-  - FAILED: camera rejected the value. State what was requested, applied, and what it means for data quality.
-  - AUTO_ADJUSTED: hardware limit reached. Always explain the practical implication.
-
-### How to structure your answer
-1. State what was **observed** — never what was concluded.
-2. Confirmed log-level issues first (frame drops, parameter failures, timing sync failure) — these are real.
-3. Pixel-level observations second — always qualified: "observed", "noted", "possible", "requires scene data to confirm".
-4. Informational items last (dark capture notice, expected TDI patterns).
-
-**Severity translation for your responses:**
-- CRITICAL finding → "Confirmed issue: ..."
-- WARNING finding → "Observed pattern: ... (confirm with scene data)"
-- INFO finding → "Noted: ... (expected / inconclusive)"
-
-**Health score language:**
-- 90-100 → "No issues observed"
-- 70-89  → "Minor patterns noted"
-- 50-69  → "Several patterns observed — scene capture recommended"
-- 30-49  → "Log issues confirmed, pixel observations inconclusive"
-- Never say "0%", "failed", or "critical health" for any dataset
-
-### What you never do
-- Never say "hardware failure", "dead", "defect", "column amplifier failure" as a conclusion — only as a possibility requiring confirmation.
-- Never diagnose pixel findings on a dark capture dataset — only report the mean DN and say "re-evaluate with scene data."
-- Never call INFO findings "warnings" or "issues" in your response.
-- Never translate an observed pattern into a verdict.
-- Never list raw flag names — translate: "alternating_row_banding" → "alternating light/dark row pattern."
-- Never repeat the same finding twice.
-- Never say a dataset "scored 0%" — minimum is 30%.
-
-## HOW YOU WORK
-
-### Default behaviour — always do this first
-1. Call `get_app_state` to see what is open and whether scans exist.
-2. If context shows `SCAN CACHE INVALIDATED` → call `refresh_scan` immediately without asking.
-3. If user says "data changed", "I fixed the resolution", "re-scan", "scan again" → call `refresh_scan`, not `run_scan`.
-
-### Reporting — active tab by default
-- Report on the **active tab** unless the user specifies another dataset.
-- Do not ask which dataset to report on when there is only one open.
-- If multiple tabs are open and it is ambiguous, call `list_open_datasets` and emit a CHOICE block so the user can pick.
-
-### Compare flow
-When user says "compare" and multiple datasets are open:
-1. Call `list_open_datasets` to get current open datasets.
-2. Emit a CHOICE block with mode=multi so user can pick which two to compare.
-3. After user picks, scan both if needed, then call `compare_datasets`.
-
-When user says "compare" and only one dataset is open:
-- Say "I only see one dataset open. Which second dataset should I compare to?"
-- Offer to open a new folder or ask user to load one first.
-
-### No dataset loaded
-- Never stop working. If no dataset is open and user asks to scan:
-  1. Say "No dataset is loaded. Please select a folder to scan."
-  2. Emit a CHOICE block asking user to specify the folder path, OR
-  3. Ask the user to paste the folder path directly.
-- Never say "I can't help" — always offer the next step.
-
-### Folder tree scanning
-- When user says "scan this folder" and points to a parent directory with multiple datasets:
-  - Call `browse_folder_tree` with the root folder.
-- When user says "logs only" or "just check the logs":
-  - Call `browse_folder_tree` with logs_only=true, OR call `read_logs` for a single folder.
-
-### Scanning
-- Default: `run_scan` mode="full" for a fresh scan of a specific folder.
-- `refresh_scan`: when results are stale or user signals data changed.
-- `browse_folder_tree`: when user points to a directory containing multiple datasets.
-- mode="quick" only if user explicitly says so.
-- After scan: report health score, confirmed issues, observed patterns — in that order.
-
-### Interactive pickers — CHOICE block format
-When you need the user to choose from a list, emit this exact format at the end of your message:
-
-For single selection:
-[CHOICE:single|prompt="Which dataset should I report on?"|opts="DatasetA||DatasetB||DatasetC"]
-
-For multi selection:
-[CHOICE:multi|prompt="Which datasets do you want to compare? (select two)"|opts="DatasetA||DatasetB||DatasetC"]
-
-Rules for CHOICE blocks:
-- Always place the CHOICE block at the END of your message, after any text.
-- Use `list_open_datasets` to get the actual dataset names before building the opts list.
-- Only emit one CHOICE block per message.
-- Never emit a CHOICE block when there is only one option.
-
-### Multiple open tabs
-- `get_app_state` shows all tabs. Say which dataset you are analyzing if ambiguous.
-- Use `compare_datasets` for side-by-side. Scan both first if needed.
-
-## COMMUNICATION RULES
-1. One question -> one direct answer with specific values.
-2. Plain language always. Translate every technical flag name.
-3. For each finding: what it is, which band, which frames, cause, real problem or expected.
-4. If downgraded to INFO by context: say "observed but expected given [reason]" not "warning."
-5. Short greetings: one sentence only.
-6. No filler. No "Certainly!" No repeating the question back.
-7. Frame numbers as **NUMBER** so they render highlighted.
-8. Technical reports must be anomaly-only: never spend lines on "everything else is normal".
-9. If evidence is weak, say "possible" or "inconclusive" instead of asserting hardware failure.
-10. Be very deatiled and give full report with all noteable observations 
-11. Do not restate UI sections unless the user asks for a walkthrough.
-12. Prefer tool calls and concrete answers over speculation.
-
-## MEMORY & PERSISTENT SCAN CACHE
-
-**Scan cache (automatic, local SQLite)**
-Every scan result is saved to `iris_scans.db` after it completes. When a dataset
-is opened again, the result loads instantly — no re-scanning, no pixel reading,
-no tokens spent on raw file content. Never re-scan a dataset that has a valid
-cache entry unless the user explicitly asks.
-
-**Long-term memory (Supabase, semantic)**
-Key findings are stored as embeddings. You can recall them by meaning.
-
-What to do automatically:
-- At the start of any analysis, call `recall_memory` with the dataset name —
-  if a memory exists, surface it: "I've seen this dataset before — [finding].
-  Shall I use the cached result or re-scan?"
-- After any CRITICAL finding, call `save_memory` to preserve it for future sessions.
-- When user says "remember this", "save this finding", "note this down".
-
-What you never do:
-- Never re-scan when a cached result exists (unless user asks).
-- Never ask user to re-upload logs you've already processed.
-- Never save INFO-level observations as memories — only significant findings.
-
-## KNOWLEDGE BASE
-
-You have a semantic knowledge base of indexed reference files — sensor specs,
-camera manuals, SOPs, calibration guides.
-
-When to search:
-- Any question about specific hardware limits, parameter ranges, or sensor specs.
-- Before making any claim about a hardware specification — search first, don't guess.
-- When the user asks "what does the manual say about X".
-- When a scan finding needs context from specs.
-
-What you never do:
-- Never invent hardware specifications — search or say you don't know.
-- Never say "according to my training data" when you have a knowledge base.
-
-## HISTOGRAM VIEWER AWARENESS
-
-You always know what the Histogram tab is showing. The current histogram state is
-injected into every message via CURRENT APPLICATION CONTEXT. When it is present, use it.
-
-When the user asks anything about the histogram, pixel values, exposure, DN levels,
-saturation, dynamic range, or what a band looks like — call `get_histogram_state`
-to get the full current state including per-band statistics and derived observations.
-
-**How to interpret histogram state:**
-- `frame_pixel_min` / `frame_pixel_max` — actual pixel value range in the current frame.
-  Compare against `axis_max` (e.g. 1023 for 10-bit) to assess dynamic range utilisation.
-- `band_stats.mean` — average DN per band. Cross-band outliers suggest a binned band,
-  an inactive band, or a degraded spectral channel.
-- `saturated_pct > 1%` — band is clipping at the sensor ceiling.
-- `black_pct > 5%` — band has near-zero pixels. Camera may be covered, or band inactive.
-- `visible_bands` — only the bands the user has checked on in the legend.
-
-**What you never do with histogram data:**
-- Never report a mean DN and call it "the pixel value" — it's an average across the frame.
-- Never diagnose saturation from a dark capture — say "re-evaluate with scene data."
-- Never say a band is "dead" based on histogram alone — it may be binned or hidden.
+Your primary goal is to help the user understand and navigate the application. Whenever the user is stuck, you should be able to answer questions regarding the application. You act as a simple, helpful assistant. You can also perform tasks based on the user's text requests when appropriate, but your main focus is on answering questions and guiding the user. Keep your answers clear, helpful, and concise.
 
 ## CURRENT APPLICATION CONTEXT
 {CONTEXT}
@@ -705,6 +460,18 @@ class IrisOllamaWorker(QThread):
  
         q = question.lower()
         
+        import difflib
+        def fuzzy_has(kw_list):
+            if any(k in q for k in kw_list):
+                return True
+            words = q.split()
+            single_kws = [k for k in kw_list if " " not in k]
+            for w in words:
+                # 0.75 cutoff handles 'ope' for 'open', 'lod' for 'load', etc.
+                if difflib.get_close_matches(w, single_kws, n=1, cutoff=0.75):
+                    return True
+            return False
+        
         # Try to extract path from question if not already provided
         extracted_path = self._extract_path_from_question(question)
         effective_folder = extracted_path or folder
@@ -717,7 +484,7 @@ class IrisOllamaWorker(QThread):
                       "quick scan", "full scan", "check this", "health check")
 
         _PARAM_KW = ()
-        if any(k in q for k in _PARAM_KW):
+        if fuzzy_has(_PARAM_KW):
             if not effective_folder:
                 self.completed.emit("No dataset provided. Either load a folder first or provide a path in your request.")
                 return True
@@ -781,7 +548,7 @@ class IrisOllamaWorker(QThread):
             return True
 
         _LOG_KW = ()
-        if any(k in q for k in _LOG_KW):
+        if fuzzy_has(_LOG_KW):
             if not effective_folder:
                 self.completed.emit("No dataset provided. Either load a folder first or provide a path in your request.")
                 return True
@@ -793,7 +560,7 @@ class IrisOllamaWorker(QThread):
                 self.completed.emit(result.get("report", "Session log report generated."))
             return True
 
-        if any(k in q for k in _REPORT_KW):
+        if fuzzy_has(_REPORT_KW):
             if not effective_folder:
                 self.completed.emit("No dataset provided. Either load a folder first or provide a path in your request.")
                 return True
@@ -805,7 +572,7 @@ class IrisOllamaWorker(QThread):
                 self.completed.emit(result.get("report", "Report generated."))
             return True
 
-        if any(k in q for k in _SCAN_KW):
+        if fuzzy_has(_SCAN_KW):
             if not effective_folder:
                 self.completed.emit("No dataset provided. Either load a folder first or provide a path in your request.")
                 return True
@@ -821,6 +588,19 @@ class IrisOllamaWorker(QThread):
                 f"{result.get('anomaly_count',0)} anomalies.")
             return True
 
+        _OPEN_KW = ("open", "load", "view", "show")
+        if fuzzy_has(_OPEN_KW):
+            if extracted_path:
+                self.tool_call.emit("open_dataset")
+                in_current = any(x in q for x in ("current tab", "same tab", "this tab", "here"))
+                result = TOOL_DISPATCH["open_dataset"]({"folder_path": extracted_path, "in_current_tab": in_current})
+                if result.get("error"):
+                    self.completed.emit(f"Failed to open: {result['error']}")
+                else:
+                    self.completed.emit(f"Opened {os.path.basename(extracted_path)}.")
+                return True
+
+        # Fallback to LLM planner for complex tasks like "open last folder"
         plan = self._plan_task(question)
         tool = plan.get("tool", "none")
         conf = float(plan.get("confidence", 0.0))
@@ -841,7 +621,6 @@ class IrisOllamaWorker(QThread):
             self.completed.emit(f"{tool} failed: {result['error']}")
             return True
 
-        # For scan actions, return the full structured report immediately.
         if tool == "run_scan":
             report_fn = TOOL_DISPATCH.get("generate_report")
             report_folder = args.get("folder") or effective_folder or state.active_folder or ""
@@ -850,131 +629,26 @@ class IrisOllamaWorker(QThread):
                 if rep.get("report"):
                     self.completed.emit(rep["report"])
                     return True
-                if rep.get("error"):
-                    self.completed.emit(
-                        f"Scan completed, but report generation failed: {rep['error']}"
-                    )
-                    return True
-
-        # Best-effort learning: store successful action + phrasing in memory.
-        try:
-            save_fn = TOOL_DISPATCH.get("save_memory")
-            if save_fn:
-                save_fn({
-                    "title": f"Action learned: {tool}",
-                    "detail": f"User said: {question}\nResult: {result}",
-                    "memory_type": "note",
-                    "dataset": os.path.basename(effective_folder) if effective_folder else "",
-                    "tags": ["llm_action", tool],
-                })
-        except Exception:
-            pass
 
         if tool == "generate_report":
             txt = result.get("report", "") or result.get("message", "Report generated.")
             self.completed.emit(txt)
             return True
 
-        msg = (
-            result.get("message")
-            or result.get("status")
-            or f"Executed {tool}."
-        )
+        msg = result.get("message") or result.get("status") or f"Executed {tool}."
         self.completed.emit(msg)
-
         return True
 
     def _dispatch(self):
         question = _extract_question(self._messages)
-        history  = _build_history(self._messages)
-
-        # ── Explicit API request — user typed "ask claude" etc. ───────────────
-        if self._mode == "smart" and self._allow_api and self._api_key:
-            q_lower = question.lower()
-            if any(k in q_lower for k in ("ask claude", "use api", "get better answer", "online")):
-                self.needs_api.emit(question)
-                return
-
-        # ── Zero-cost intent classification ───────────────────────────────────
         intent = classify_intent(question)
-
-        from .ollama import available_models as _avail_fn
-        if not _avail_fn():
-            self._fallback_no_ollama(question, intent)
-            return
-
-        # ── Casual — skip all routing, just chat ──────────────────────────────
-        if intent == "casual":
-            self._stream(question, context="", history=history, action="casual")
-            return
-
         folder = self._folder or state.active_folder or ""
 
-        # ── Task: LLM action planner for free-language commands ──────────────
         if intent == "task":
             if self._try_llm_task_execution(question, folder):
-                return   # action executed, report/confirmation already emitted
-            # LLM planner didn't fire (low confidence / no match) → rule engine
-            context = self._handle_task(question, folder, history)
-            if context is None:
-                return   # rule engine emitted directly (shouldn't happen here)
-        else:
-            context = build_context_for_llm(folder) if folder else ""
-
-        # ── Smart mode: Ollama routes question/analysis requests ──────────────
-        #
-        # Only runs for intent == "question" (or task that fell through).
-        # Scan/report tasks are already handled above — they never reach here.
-        # Routing adds ~1 s but only on analytical questions, never on actions.
-        #
-        #   QUERY_MEMORY → fetch past session findings from Supabase memory
-        #   QUERY_KB     → fetch sensor specs / manuals from knowledge base
-        #   QUERY_BOTH   → fetch both
-        #   ESCALATE     → hand off to Claude API (deep reasoning needed)
-        #   ANSWER       → stream directly, no Supabase needed
-        #
-        if self._mode == "smart" and self._allow_api and self._api_key and intent == "question":
-            self.tool_call.emit("routing_check")
-            route = self._route(question, context)
-
-            if route == "ESCALATE":
-                self.tool_call.emit("escalating_to_api")
-                self.needs_api.emit(question)
                 return
-
-            dataset_name = os.path.basename(folder) if folder else ""
-            mem_query    = f"{dataset_name} {question}".strip() if dataset_name else question
-
-            if route in ("QUERY_MEMORY", "QUERY_BOTH"):
-                try:
-                    from .retrieval import recall_memory
-                    mem = recall_memory(query=mem_query, top_k=3, threshold=0.35)
-                    if mem.get("total_found", 0) > 0:
-                        context = mem["context_text"] + "\n\n" + context
-                        self.tool_call.emit("recall_memory")
-                except Exception:
-                    pass
-
-            if route in ("QUERY_KB", "QUERY_BOTH"):
-                try:
-                    from .ollama import search_local_kb_fast
-                    kb_ctx = search_local_kb_fast(question, top_k=4)
-                    if kb_ctx:
-                        context = kb_ctx + "\n\n" + context
-                        self.tool_call.emit("knowledge_search")
-                except Exception:
-                    # Fallback: Supabase pgvector (requires network + credentials)
-                    try:
-                        from .retrieval import search_knowledge
-                        kb = search_knowledge(query=question, top_k=3, threshold=0.32)
-                        if kb.get("total_found", 0) > 0:
-                            context = kb["context_text"] + "\n\n" + context
-                            self.tool_call.emit("knowledge_search")
-                    except Exception:
-                        pass
-
-        # ── Stream the answer ──────────────────────────────────────────────────
-        self._stream(question, context=context, history=history, action=intent)
+                
+        self._fallback_no_ollama(question, intent)
 
 
     def _handle_task(self, question: str, folder: str, history: List[Dict]) -> Optional[str]:
@@ -1071,17 +745,15 @@ class IrisOllamaWorker(QThread):
         return context
 
     def _fallback_no_ollama(self, question: str, intent: str):
-        """Ollama unavailable — answer from rule engine only."""
+        """Answer from rule engine only (zero API/LLM dependencies)."""
         folder = self._folder or state.active_folder or ""
         if intent == "casual":
-            self.completed.emit("Hi! Ollama is offline so I'm in rule-only mode. Ask me about your scan data.")
+            self.completed.emit("Hi! I'm operating in instant local mode. Ask me about your scan data or give me a command.")
             return
         result = analyze(folder, question)
         answer = result.get("answer") or result.get("report_text", "")
         if not answer:
-            answer = "Ollama is not available. Start Ollama to enable AI responses."
-        else:
-            answer += "\n\n[Ollama offline — install: ollama pull gemma3:4b]"
+            answer = "I couldn't find a direct answer to that from the scan data using my local engine."
         self.completed.emit(answer)
 
     def _stream(

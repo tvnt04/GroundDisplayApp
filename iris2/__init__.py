@@ -59,13 +59,15 @@ class Iris:
     def _on_open_dataset_request(self, event: AppEvent):
         from PyQt5.QtCore import QTimer
         folder = event.payload.get("folder", "")
+        in_current_tab = event.payload.get("in_current_tab", False)
         if folder and hasattr(self._main_window, "_add_band_tab"):
-            QTimer.singleShot(0, lambda: self._do_open(folder))
+            QTimer.singleShot(0, lambda: self._do_open(folder, in_current_tab))
 
-    def _do_open(self, folder: str):
+    def _do_open(self, folder: str, in_current_tab: bool = False):
         try:
             win = self._main_window
-            win._add_band_tab()
+            if not in_current_tab:
+                win._add_band_tab()
             widget = win.tab_widget.currentWidget()
             if hasattr(widget, "_open_recent_folder"):
                 widget._open_recent_folder(folder)

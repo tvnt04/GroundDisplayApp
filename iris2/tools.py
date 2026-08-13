@@ -387,15 +387,15 @@ def tool_navigate_to_frame(frame_index: int, folder: str = None) -> Dict:
     }
 
 
-def tool_open_dataset(folder_path: str) -> Dict:
-    """Open a dataset folder in a new Band Mode tab."""
+def tool_open_dataset(folder_path: str, in_current_tab: bool = False) -> Dict:
+    """Open a dataset folder in a new or current Band Mode tab."""
     if not os.path.isdir(folder_path):
         return {"error": f"Folder not found: {folder_path}"}
     # bus.emit() is thread-safe — no QTimer or sleep needed.
     # The OPEN_DATASET subscriber in __init__.py uses QTimer.singleShot itself,
     # so the actual tab open happens on the Qt main thread asynchronously.
     try:
-        bus.emit(AppEvent(EventType.OPEN_DATASET, {"folder": folder_path}, source="iris"))
+        bus.emit(AppEvent(EventType.OPEN_DATASET, {"folder": folder_path, "in_current_tab": in_current_tab}, source="iris"))
     except Exception as e:
         return {"error": f"Failed to emit open event: {e}"}
     return {
@@ -405,7 +405,7 @@ def tool_open_dataset(folder_path: str) -> Dict:
     }
 
 
-def tool_open_last_session() -> Dict:
+def tool_open_last_session(in_current_tab: bool = False) -> Dict:
     """
     Open the most recent dataset from memory/session files.
     Resolution order:
@@ -462,7 +462,7 @@ def tool_open_last_session() -> Dict:
             continue
         seen.add(p)
         if os.path.isdir(p) and _looks_like_dataset_folder(p):
-            r = tool_open_dataset(p)
+            r = tool_open_dataset(p, in_current_tab=in_current_tab)
             if r.get("error"):
                 continue
             r["source"] = source
@@ -2561,6 +2561,7 @@ TOOL_SCHEMAS = [
             "type": "object",
             "properties": {
                 "folder_path": {"type": "string", "description": "Full path to dataset folder"},
+                "in_current_tab": {"type": "boolean", "description": "Set to true to load it in the current open tab instead of opening a new one."}
             },
             "required": ["folder_path"],
         },
@@ -2987,8 +2988,8 @@ TOOL_DISPATCH = {
     "find_anomaly_frames": lambda inp: tool_find_anomaly_frames(inp.get("folder",""), inp.get("anomaly_type")),
     "get_frame_info":      lambda inp: tool_get_frame_info(inp.get("folder",""), inp.get("frame_index", 0)),
     "navigate_to_frame":   lambda inp: tool_navigate_to_frame(inp.get("frame_index", 0), inp.get("folder")),
-    "open_dataset":        lambda inp: tool_open_dataset(inp.get("folder_path", "")),
-    "open_last_session":   lambda inp: tool_open_last_session(),
+    "open_dataset":        lambda inp: tool_open_dataset(inp.get("folder_path", ""), inp.get("in_current_tab", False)),
+    "open_last_session":   lambda inp: tool_open_last_session(inp.get("in_current_tab", False)),
     "set_zoom":            lambda inp: tool_set_zoom(inp.get("level", 1.0)),
     "generate_report":     lambda inp: tool_generate_report(inp.get("folder", "")),
     "llm_log_audit":       lambda inp: tool_llm_log_audit(inp.get("folder", ""), inp.get("max_chars", 120000)),
