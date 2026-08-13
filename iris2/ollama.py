@@ -213,7 +213,7 @@ def _resolve_model(preferred: str) -> str:
 
 # gemma3:4b: keep it SHORT — gemma follows concise prompts better
 _SYSTEM_FAST = (
-    "You are Iris, a camera QA assistant inside DisplayGroundX.\n"
+    "You are Iris, a camera QA assistant inside Display X Studio.\n"
     "Answer in plain conversational sentences — no bullet points, no markdown.\n"
     "Be direct and specific. Answer the latest user request only.\n"
     "Do not recycle the same explanation unless the user asked the same question again.\n"
@@ -222,7 +222,7 @@ _SYSTEM_FAST = (
 
 # qwen2.5:7b: full context — qwen handles long system prompts well
 _SYSTEM_SMART = (
-    "You are Iris, a satellite camera QA analyst inside DisplayGroundX.\n"
+    "You are Iris, a satellite camera QA analyst inside Display X Studio.\n"
     "You are talking to an engineer. Be direct, specific, and natural — like a knowledgeable colleague.\n"
     "Sensor: pushbroom, 8448×384px, 7 bands, 10-bit. TDI byte: 0=OFF 34=8-stage 66=64-stage.\n"
     "When given scan data: explain what you see, what likely caused it, and what to do.\n"

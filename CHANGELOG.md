@@ -1,4 +1,4 @@
-# Change Log
+# Display X Studio Change Log
 
 ## v1.3.0
 

@@ -13,7 +13,7 @@ _MODE_TITLES = {
 
 _MODE_BODIES = {
     "onboarding": """
-<h3>DisplayGround – Quick Start</h3>
+<h3>Display X Studio – Quick Start</h3>
 <p><strong>Choose Your Data Type:</strong></p>
 <ul>
   <li><strong>Band Mode</strong> — Multi-spectral <code>.bandXX</code> files, stitching, RGB fusion, histogram, full analysis toolkit.</li>

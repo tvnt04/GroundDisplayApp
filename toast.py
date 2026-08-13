@@ -1,6 +1,6 @@
 """
 Modern, native-matching, non-blocking toast notification system for PyQt5.
-Customized to seamlessly match the GroundDisplayApp-Gold theme (Charcoal & Gold/Teal in dark mode,
+Customized to seamlessly match the Display X Studio theme (Charcoal & Gold/Teal in dark mode,
 and Clean White & Teal in light mode) with crisp vector badges, animated progress bar,
 hover-pause, and smooth stacking.
 """
@@ -277,7 +277,7 @@ class ToastCloseButton(QPushButton):
 
 class ToastNotification(QWidget):
     """
-    Native-themed in-window floating toast notification card for GroundDisplayApp.
+    Native-themed in-window floating toast notification card for Display X Studio.
     Matches the Fusion Dark/Charcoal aesthetic with 5px radius and accent styling.
     Runs as an in-window overlay to completely avoid OS window-manager popups and switcher artifacts.
     """
@@ -424,7 +424,7 @@ class ToastNotification(QWidget):
         self.exit_group.finished.connect(self._on_exit_finished)
 
     def paintEvent(self, event):
-        """Custom painting matching the exact GroundDisplayApp fusion charcoal/white card."""
+        """Custom painting matching the exact Display X Studio fusion charcoal/white card."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)

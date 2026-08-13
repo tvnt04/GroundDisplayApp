@@ -60,7 +60,7 @@ class VideoModeHandler(QWidget):
     def _default_capture_dir(self):
         # Use an OS-appropriate default capture directory.
         if os.name == "nt":
-            return os.path.join(os.path.expanduser("~"), "Pictures", "DisplayGroundx", "Capture")
+            return os.path.join(os.path.expanduser("~"), "Pictures", "Display X Studio", "Capture")
         return "/opt/KAYA_Instruments/Examples/Vision Point API/Display_live/Capture"
 
     def _resolve_camera_binary(self):

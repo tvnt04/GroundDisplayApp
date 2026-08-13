@@ -4,7 +4,7 @@ file_path = '/home/xdlinx/DisplayBetaApp/GroundDIsplayApp/GroundDisplayApp_v1.2.
 with open(file_path, 'r') as f:
     content = f.read()
 
-new_system = '''_SYSTEM = """You are Iris — a helpful AI assistant embedded in DisplayGroundX, \
+new_system = '''_SYSTEM = """You are Iris — a helpful AI assistant embedded in Display X Studio, \
 a multispectral satellite and sensor imagery analysis application.
 
 ## YOUR IDENTITY
