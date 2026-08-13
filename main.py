@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QGridLayout,
     QLabel, QTabWidget, QSizePolicy, QToolButton, QShortcut, QTabBar, QProgressDialog,
-    QDialog, QRadioButton, QButtonGroup, QMessageBox, QCheckBox, QSplitter, QToolTip
+    QDialog, QRadioButton, QButtonGroup, QMessageBox, QCheckBox, QSplitter, QToolTip, QMenu, QAction,
+    QFrame
 )
 from PyQt5.QtCore import Qt, QTimer, QCoreApplication, QThread, QObject, QEvent, QPoint, qInstallMessageHandler
 from PyQt5.QtGui import QPalette, QColor, QTransform, QKeySequence, QCloseEvent, QCursor, QHelpEvent
@@ -12,10 +13,30 @@ from band_app import BandStitchProApp
 import gc
 import json
 import os
+import tempfile
 import psutil
 from ui_components import *
 from utils import TerminalWidget
 from help_tab import create_help_tab
+try:
+    from toast import (
+        show_toast, show_warning, show_info, show_error, show_success,
+        install_toast_message_box_hook
+    )
+except Exception:
+    def show_warning(parent=None, title="Warning", message="", duration=3500):
+        pass
+    def show_info(parent=None, title="Info", message="", duration=3000):
+        pass
+    def show_error(parent=None, title="Error", message="", duration=4500):
+        pass
+    def show_success(parent=None, title="Success", message="", duration=3000):
+        pass
+    def show_toast(title, message, kind="warning", duration=3500, parent=None):
+        pass
+    def install_toast_message_box_hook():
+        pass
+
 try:
     from iris2 import Iris
 except Exception as _e:
@@ -311,6 +332,26 @@ class ModeSelectionDialog(QDialog):
             return "tiled"
         return "band"  # Fallback
 
+    def keyPressEvent(self, event):
+        """Allow up/down arrow keys to cycle through radio buttons regardless of focus."""
+        if event.key() in (Qt.Key_Down, Qt.Key_Up):
+            radios = [self.band_radio, self.raw_radio, self.video_radio, self.live_radio, self.tiled_radio]
+            current_idx = -1
+            for i, r in enumerate(radios):
+                if r.isChecked():
+                    current_idx = i
+                    break
+            if current_idx != -1:
+                if event.key() == Qt.Key_Down:
+                    next_idx = (current_idx + 1) % len(radios)
+                else:
+                    next_idx = (current_idx - 1) % len(radios)
+                radios[next_idx].setChecked(True)
+                radios[next_idx].setFocus()
+                event.accept()
+                return
+        super().keyPressEvent(event)
+
 class _TooltipFilter(QObject):
     """Force tooltips to appear at current cursor target and hide stale ones."""
     def eventFilter(self, watched, event):
@@ -334,30 +375,86 @@ class _TooltipFilter(QObject):
         return False
 
 
+class SecondaryMonitorWindow(QMainWindow):
+    def __init__(self, main_app):
+        super().__init__(main_app)
+        self.main_app = main_app
+        self.setWindowTitle("DisplayGround-Gold - Screen 2")
+        self.resize(1280, 800)
+
+        central = QWidget(self)
+        self.setCentralWidget(central)
+        layout = QVBoxLayout()
+        layout.setContentsMargins(6, 6, 6, 6)
+        central.setLayout(layout)
+
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabBar(CustomTabBar())
+        layout.addWidget(self.tab_widget, 1)
+        self.main_app._configure_tab_host(self.tab_widget, "screen2")
+
+        self.tab_widget.currentChanged.connect(self._on_current_changed)
+
+    def _on_current_changed(self, index):
+        self.main_app._handle_tab_change_for_host(self.tab_widget, index)
+
+    def place_on_secondary_monitor(self):
+        app = QApplication.instance()
+        if app is None:
+            return
+        screens = app.screens()
+        target_screen = screens[1] if len(screens) > 1 else (screens[0] if screens else None)
+        if target_screen is None:
+            return
+        avail = target_screen.availableGeometry()
+        margin = 16
+        width = max(640, avail.width() - (margin * 2))
+        height = max(480, avail.height() - (margin * 2))
+        self.setGeometry(avail.x() + margin, avail.y() + margin, width, height)
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def closeEvent(self, event):
+        if not getattr(self.main_app, "_app_is_closing", False):
+            self.main_app._return_secondary_tabs_to_main()
+        self.main_app._refresh_display_menu()
+        super().closeEvent(event)
+
+
 class MainApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.session_file = "last_session.json"
+        self.session_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_session.json")
         self.setWindowTitle("DisplayGround-Gold")
         self.resize(1280, 800)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         central_widget.setLayout(main_layout)
 
+        self.primary_toolbar_frame = QFrame()
+        self.primary_toolbar_layout = QVBoxLayout()
+        self.primary_toolbar_layout.setContentsMargins(9, 9, 9, 0)
+        self.primary_toolbar_layout.setSpacing(0)
+        self.primary_toolbar_frame.setLayout(self.primary_toolbar_layout)
+        main_layout.addWidget(self.primary_toolbar_frame, 0)
+
         button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 0, 0, 0)
 
         self.ram_label = QLabel("RAM: 0/0 GB")
         button_layout.addWidget(self.ram_label)
-
-        button_layout.addStretch()
-        main_layout.addLayout(button_layout)
+        self.primary_toolbar_layout.addLayout(button_layout)
 
         self.tab_widget = QTabWidget()
         tab_bar = CustomTabBar()
         self.tab_widget.setTabBar(tab_bar)  # From ui_components
         #self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        self._configure_tab_host(self.tab_widget, "left")
 
         self._tab_nav_left = QToolButton(self.tab_widget)
         self._tab_nav_left.setText("<")
@@ -412,7 +509,37 @@ class MainApp(QMainWindow):
         self._add_tab_button.setToolTip("Open a new dataset tab")
         self._add_tab_button.clicked.connect(self.add_new_tab)
 
-        main_layout.addWidget(self.tab_widget)
+        self.content_frame = QFrame()
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setContentsMargins(9, 6, 9, 9)
+        self.content_layout.setSpacing(0)
+        self.content_frame.setLayout(self.content_layout)
+        self.content_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        main_layout.addWidget(self.content_frame, 1)
+
+        self.dual_host_splitter = QSplitter(Qt.Horizontal)
+        self.dual_host_splitter.setChildrenCollapsible(False)
+        self.content_layout.addWidget(self.dual_host_splitter, 1)
+        self.dual_host_splitter.addWidget(self.tab_widget)
+
+        self.secondary_host_container = QWidget()
+        self.secondary_host_layout = QVBoxLayout()
+        self.secondary_host_layout.setContentsMargins(0, 0, 0, 0)
+        self.secondary_host_layout.setSpacing(0)
+        self.secondary_host_container.setLayout(self.secondary_host_layout)
+
+        self.secondary_tab_widget = QTabWidget()
+        secondary_tab_bar = CustomTabBar()
+        self.secondary_tab_widget.setTabBar(secondary_tab_bar)
+        self.secondary_host_layout.addWidget(self.secondary_tab_widget, 1)
+        self.secondary_tab_widget.currentChanged.connect(
+            lambda index: self._handle_tab_change_for_host(self.secondary_tab_widget, index)
+        )
+        self._configure_tab_host(self.secondary_tab_widget, "right")
+
+        self.dual_host_splitter.addWidget(self.secondary_host_container)
+        self.secondary_host_container.hide()
+        self.dual_host_splitter.setSizes([1, 0])
         self.tab_switch_timer = QTimer()
         self._pending_tab_change_index = -1
         self._last_real_tab_index = 0
@@ -434,14 +561,53 @@ class MainApp(QMainWindow):
         if Iris is not None:
             try:
                 self.iris = Iris(self)
-                button_layout.addWidget(self.iris.button)
             except Exception as e:
                 print(f"Iris disabled: {e}")
 
         add_live_btn = QPushButton("Live Tab")
         add_live_btn.setToolTip("Open live tab")
         add_live_btn.clicked.connect(self.add_live_tab)
-        button_layout.addWidget(add_live_btn)
+        self._top_right_controls = QHBoxLayout()
+        self._top_right_controls.setContentsMargins(0, 0, 0, 0)
+        self._top_right_controls.setSpacing(6)
+
+        self.secondary_window = None
+        self._is_spanned_across_two_screens = False
+
+        self.display_menu_button = QToolButton()
+        self.display_menu_button.setText("Display")
+        self.display_menu_button.setPopupMode(QToolButton.InstantPopup)
+        self.display_menu_button.setToolTip("Display and monitor options")
+        self.display_menu = QMenu(self.display_menu_button)
+
+        self.toggle_span_action = QAction(self)
+        self.toggle_span_action.triggered.connect(self.toggle_span_two_screens)
+        self.display_menu.addAction(self.toggle_span_action)
+
+        self.toggle_screen2_window_action = QAction(self)
+        self.toggle_screen2_window_action.triggered.connect(self.toggle_secondary_window)
+        self.display_menu.addAction(self.toggle_screen2_window_action)
+
+        self.display_menu.addSeparator()
+
+        self.move_tab_right_action = QAction("Move Current Tab To Right Monitor", self)
+        self.move_tab_right_action.triggered.connect(self.move_current_tab_to_right_panel)
+        self.display_menu.addAction(self.move_tab_right_action)
+
+        self.move_tab_left_action = QAction("Move Current Tab To Left Monitor", self)
+        self.move_tab_left_action.triggered.connect(self.move_current_tab_to_left_panel)
+        self.display_menu.addAction(self.move_tab_left_action)
+
+        self.move_tab_screen2_action = QAction("Move Current Tab To Screen 2 Window", self)
+        self.move_tab_screen2_action.triggered.connect(self.move_current_tab_to_secondary)
+        self.display_menu.addAction(self.move_tab_screen2_action)
+
+        self.display_menu_button.setMenu(self.display_menu)
+        button_layout.addStretch()
+        if getattr(self, "iris", None) is not None:
+            self._top_right_controls.addWidget(self.iris.button)
+        self._top_right_controls.addWidget(add_live_btn)
+        self._top_right_controls.addWidget(self.display_menu_button)
 
         self.add_new_tab()
 
@@ -462,7 +628,8 @@ class MainApp(QMainWindow):
             font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", "EmojiOne Color", sans-serif;
         """)  # Updated for color emojis
         self.dark_mode_button.toggled.connect(self._on_dark_mode_toggled)
-        button_layout.addWidget(self.dark_mode_button)
+        self._top_right_controls.addWidget(self.dark_mode_button)
+        button_layout.addLayout(self._top_right_controls)
 
         # Keep a reference and use application-level context so the shortcut
         # works even when focus is inside child widgets.
@@ -470,8 +637,46 @@ class MainApp(QMainWindow):
         self.restore_shortcut.setContext(Qt.ApplicationShortcut)
         self.restore_shortcut.activated.connect(self.restore_session)
         self.load_dark_mode()  # Moved here to ensure dark_mode_button exists
+        self._refresh_display_menu()
         QTimer.singleShot(0, self._fit_window_to_screen)
         QTimer.singleShot(0, self._update_tab_navigation_controls)
+
+    def _read_json_file(self, path, default=None):
+        if not os.path.exists(path):
+            return default
+        try:
+            with open(path, "r") as file_handle:
+                return json.load(file_handle)
+        except Exception:
+            return default
+
+    def _write_json_atomic(self, path, data):
+        target_dir = os.path.dirname(path) or "."
+        os.makedirs(target_dir, exist_ok=True)
+        temporary_handle = None
+        temporary_path = None
+        try:
+            temporary_handle = tempfile.NamedTemporaryFile("w", delete=False, dir=target_dir, prefix=".session_", suffix=".tmp")
+            temporary_path = temporary_handle.name
+            json.dump(data, temporary_handle)
+            temporary_handle.flush()
+            os.fsync(temporary_handle.fileno())
+            temporary_handle.close()
+            os.replace(temporary_path, path)
+            return True
+        except Exception as error:
+            try:
+                if temporary_handle is not None and not temporary_handle.closed:
+                    temporary_handle.close()
+            except Exception:
+                pass
+            try:
+                if temporary_path and os.path.exists(temporary_path):
+                    os.unlink(temporary_path)
+            except Exception:
+                pass
+            print(f"Error writing JSON atomically to {path}: {error}")
+            return False
 
     def _fit_window_to_screen(self):
         """Ensure main window starts fully inside the available screen area."""
@@ -497,6 +702,7 @@ class MainApp(QMainWindow):
             new_w = min(pref_w, max_w)
             new_h = min(pref_h, max_h)
 
+            self._set_primary_toolbar_width(None)
             self.resize(new_w, new_h)
             new_x = avail.x() + ((avail.width() - new_w) // 2)
             new_y = avail.y() + ((avail.height() - new_h) // 2)
@@ -532,43 +738,385 @@ class MainApp(QMainWindow):
 
         QApplication.instance().processEvents()
         try:
-            data = {}
-            if os.path.exists(self.session_file):
-                with open(self.session_file, 'r') as f:
-                    try:
-                        data = json.load(f)
-                    except Exception:
-                        data = {}
+            data = self._read_json_file(self.session_file, default={}) or {}
             data['dark_mode'] = self._is_dark_mode
-            with open(self.session_file, 'w') as f:
-                json.dump(data, f)
+            self._write_json_atomic(self.session_file, data)
         except Exception as e:
             print(f"Error saving dark mode preference: {e}")
 
 
     def load_dark_mode(self):
-        if os.path.exists(self.session_file):
+        try:
+            data = self._read_json_file(self.session_file, default={}) or {}
+            checked = bool(data.get('dark_mode', False))
+
+            if hasattr(self, 'dark_mode_button') and self.dark_mode_button is not None:
+                self.dark_mode_button.blockSignals(True)
+                self.dark_mode_button.setChecked(checked)
+                self.dark_mode_button.blockSignals(False)
+                self.dark_mode_button.setText("🌙" if checked else "🌞")
+
+            app = QApplication.instance()
+            if checked:
+                set_dark_palette(app)
+                self._is_dark_mode = True
+            else:
+                set_light_palette(app)
+                self._is_dark_mode = False
+        except Exception as e:
+            print(f"Error loading dark mode: {e}")
+
+    def _configure_tab_host(self, host, role: str):
+        if host is None:
+            return
+        host.setProperty("monitor_role", role)
+        tab_bar = host.tabBar()
+        if tab_bar is None:
+            return
+        tab_bar.setContextMenuPolicy(Qt.CustomContextMenu)
+        tab_bar.customContextMenuRequested.connect(
+            lambda pos, tab_host=host: self._show_tab_move_menu(tab_host, pos)
+        )
+        try:
+            tab_bar.tabBarDoubleClicked.connect(
+                lambda index, tab_host=host: self._show_tab_move_menu_for_index(tab_host, index)
+            )
+        except Exception:
+            pass
+
+    def _host_role(self, host):
+        if host is None:
+            return ""
+        role = host.property("monitor_role")
+        return str(role) if role else ""
+
+    def _tab_host_label(self, host):
+        role = self._host_role(host)
+        if role == "left":
+            return "Left Monitor"
+        if role == "right":
+            return "Right Monitor"
+        if role == "screen2":
+            return "Screen 2 Window"
+        return "Current Location"
+
+    def _tab_move_targets(self, source_host):
+        targets = []
+        for host in self._all_tab_hosts():
+            if host is None or host is source_host:
+                continue
+            targets.append((host, self._tab_host_label(host)))
+        return targets
+
+    def _show_tab_move_menu(self, host, pos):
+        if host is None:
+            return
+        tab_bar = host.tabBar()
+        if tab_bar is None:
+            return
+        index = tab_bar.tabAt(pos)
+        if index < 0:
+            return
+        self._show_tab_move_menu_for_index(host, index, tab_bar.mapToGlobal(pos))
+
+    def _show_tab_move_menu_for_index(self, host, index, global_pos=None):
+        if host is None or not (0 <= index < host.count()):
+            return
+        tab_bar = host.tabBar()
+        if tab_bar is None:
+            return
+        if global_pos is None:
+            rect = tab_bar.tabRect(index)
+            global_pos = tab_bar.mapToGlobal(rect.bottomLeft())
+
+        menu = QMenu(self)
+        title = host.tabText(index) or "Tab"
+        menu.addSection(title)
+        for target_host, label in self._tab_move_targets(host):
+            action = menu.addAction(f"Move To {label}")
+            action.triggered.connect(
+                lambda _checked=False, src=host, dst=target_host, idx=index: self.move_tab_between_hosts(src, dst, idx)
+            )
+        menu.exec_(global_pos)
+
+    def _all_tab_hosts(self):
+        hosts = [self.tab_widget]
+        hosts.append(self.secondary_tab_widget)
+        if self.secondary_window is not None:
+            hosts.append(self.secondary_window.tab_widget)
+        return hosts
+
+    def _total_tab_count(self) -> int:
+        return sum(host.count() for host in self._all_tab_hosts())
+
+    def _find_host_for_widget(self, widget):
+        if widget is None:
+            return None, -1
+        try:
+            probe = widget
+            while probe is not None:
+                for host in self._all_tab_hosts():
+                    index = host.indexOf(probe)
+                    if index != -1:
+                        return host, index
+                probe = probe.parentWidget()
+        except Exception:
+            pass
+        return None, -1
+
+    def _find_widget_title(self, widget, default="Dataset"):
+        host, index = self._find_host_for_widget(widget)
+        if host is not None and index != -1:
             try:
-                with open(self.session_file, 'r') as f:
-                    data = json.load(f)
-                checked = bool(data.get('dark_mode', False))
+                return host.tabText(index)
+            except Exception:
+                pass
+        return default
 
-                if hasattr(self, 'dark_mode_button') and self.dark_mode_button is not None:
-                    self.dark_mode_button.blockSignals(True)
-                    self.dark_mode_button.setChecked(checked)
-                    self.dark_mode_button.blockSignals(False)
-                    self.dark_mode_button.setText("🌙" if checked else "🌞")
+    def find_tab_index(self, widget):
+        _host, index = self._find_host_for_widget(widget)
+        return index
 
-                app = QApplication.instance()
-                if checked:
-                    set_dark_palette(app)
-                    self._is_dark_mode = True
-                else:
-                    set_light_palette(app)
-                    self._is_dark_mode = False
+    def close_widget_tab(self, widget):
+        host, index = self._find_host_for_widget(widget)
+        if host is not None and index != -1:
+            self.close_tab(index, tab_widget=host)
 
-            except Exception as e:
-                print(f"Error loading dark mode: {e}")
+    def _current_host_widget(self, preferred_host=None):
+        if preferred_host is not None and preferred_host.currentWidget() is not None:
+            return preferred_host.currentWidget()
+
+        active = QApplication.activeWindow()
+        if self.secondary_window is not None and active is self.secondary_window:
+            return self.secondary_window.tab_widget.currentWidget()
+        focus_widget = QApplication.focusWidget()
+        if focus_widget is not None:
+            host, _index = self._find_host_for_widget(focus_widget)
+            if host is not None:
+                return host.currentWidget()
+        return self.tab_widget.currentWidget()
+
+    def _set_dual_host_visible(self, visible: bool):
+        if visible:
+            self.secondary_host_container.show()
+            left = max(1, self.dual_host_splitter.width() // 2)
+            self.dual_host_splitter.setSizes([left, left])
+        else:
+            self.secondary_host_container.hide()
+            self.dual_host_splitter.setSizes([1, 0])
+        self._refresh_display_menu()
+
+    def _set_primary_toolbar_width(self, width=None):
+        try:
+            if width is None:
+                self.primary_toolbar_frame.setMaximumWidth(16777215)
+                self.primary_toolbar_frame.setMinimumWidth(0)
+            else:
+                safe_width = max(320, int(width) - 72)
+                self.primary_toolbar_frame.setMinimumWidth(safe_width)
+                self.primary_toolbar_frame.setMaximumWidth(safe_width)
+                self.primary_toolbar_frame.resize(safe_width, self.primary_toolbar_frame.height())
+        except Exception:
+            pass
+
+    def _apply_primary_monitor_control_width(self, width=None):
+        for host in self._all_tab_hosts():
+            for i in range(host.count()):
+                widget = host.widget(i)
+                if widget is None:
+                    continue
+                candidates = []
+                if isinstance(widget, BandStitchProApp):
+                    candidates.append(widget)
+                try:
+                    candidates.extend(widget.findChildren(BandStitchProApp))
+                except Exception:
+                    pass
+                for app in candidates:
+                    try:
+                        if hasattr(app, "apply_primary_monitor_control_width"):
+                            app.apply_primary_monitor_control_width(width)
+                    except Exception:
+                        pass
+
+    def _refresh_display_menu(self):
+        if hasattr(self, "toggle_span_action"):
+            self.toggle_span_action.setText(
+                "Exit Span Across 2 Screens" if self._is_spanned_across_two_screens else "Span Across 2 Screens"
+            )
+        if hasattr(self, "toggle_screen2_window_action"):
+            is_open = self.secondary_window is not None and self.secondary_window.isVisible()
+            self.toggle_screen2_window_action.setText(
+                "Close Screen 2 Window" if is_open else "Open Screen 2 Window"
+            )
+        if hasattr(self, "move_tab_left_action"):
+            self.move_tab_left_action.setEnabled(self.secondary_tab_widget.count() > 0)
+        if hasattr(self, "move_tab_right_action"):
+            self.move_tab_right_action.setEnabled(self.tab_widget.count() > 0)
+
+    def move_current_tab_to_right_panel(self):
+        if self.tab_widget.count() <= 0:
+            return
+        self._set_dual_host_visible(True)
+        index = self.tab_widget.currentIndex()
+        if index >= 0:
+            self.move_tab_between_hosts(self.tab_widget, self.secondary_tab_widget, index)
+
+    def move_current_tab_to_left_panel(self):
+        index = self.secondary_tab_widget.currentIndex()
+        if index >= 0:
+            self.move_tab_between_hosts(self.secondary_tab_widget, self.tab_widget, index)
+        if self.secondary_tab_widget.count() == 0:
+            self._set_dual_host_visible(False)
+
+    def toggle_span_two_screens(self):
+        if self._is_spanned_across_two_screens:
+            self._is_spanned_across_two_screens = False
+            self.showNormal()
+            self._set_primary_toolbar_width(None)
+            self._apply_primary_monitor_control_width(None)
+            self._fit_window_to_screen()
+            self.raise_()
+            self.activateWindow()
+            self._refresh_display_menu()
+            return
+        self.span_across_two_screens()
+
+    def toggle_secondary_window(self):
+        if self.secondary_window is not None and self.secondary_window.isVisible():
+            self.secondary_window.close()
+            self._refresh_display_menu()
+            return
+        self.open_secondary_window()
+
+    def _apply_spanned_geometry(self):
+        app = QApplication.instance()
+        if app is None:
+            return False
+
+        screens = list(app.screens())
+        if len(screens) < 2:
+            return False
+
+        # Use full screen geometry so the window can truly span monitors.
+        ordered = sorted(screens[:2], key=lambda s: (s.geometry().x(), s.geometry().y()))
+        left_rect = ordered[0].geometry()
+        right_rect = ordered[1].geometry()
+        combined = left_rect.united(right_rect)
+
+        self.showNormal()
+        self.setGeometry(combined)
+        self.move(combined.x(), combined.y())
+        self.resize(combined.width(), combined.height())
+        self.setMinimumSize(400, 300)
+        self._set_primary_toolbar_width(left_rect.width() - 24)
+        self._apply_primary_monitor_control_width(left_rect.width() - 24)
+
+        left_width = max(1, left_rect.width())
+        right_width = max(1, right_rect.width())
+        if self.secondary_tab_widget.count() > 0:
+            self._set_dual_host_visible(True)
+            self.dual_host_splitter.setSizes([left_width, right_width])
+        else:
+            self._set_dual_host_visible(False)
+        return True
+
+    def span_across_two_screens(self):
+        app = QApplication.instance()
+        if app is None:
+            return
+        if len(app.screens()) < 2:
+            QMessageBox.information(self, "Two Monitors Required", "Enable extended display mode with at least two monitors.")
+            return
+        if not self._apply_spanned_geometry():
+            return
+        self._is_spanned_across_two_screens = True
+        self.raise_()
+        self.activateWindow()
+        QTimer.singleShot(0, self._apply_spanned_geometry)
+        QTimer.singleShot(100, self._apply_spanned_geometry)
+        self._refresh_display_menu()
+
+    def open_secondary_window(self):
+        if self.secondary_window is None:
+            self.secondary_window = SecondaryMonitorWindow(self)
+        self.secondary_window.place_on_secondary_monitor()
+        self._refresh_display_menu()
+        return self.secondary_window
+
+    def move_current_tab_to_secondary(self):
+        if self.tab_widget.count() <= 0:
+            return
+        secondary = self.open_secondary_window()
+        index = self.tab_widget.currentIndex()
+        if index >= 0:
+            self.move_tab_between_hosts(self.tab_widget, secondary.tab_widget, index)
+
+    def _return_secondary_tabs_to_main(self):
+        if self.secondary_window is None:
+            return
+        secondary_tabs = self.secondary_window.tab_widget
+        while secondary_tabs.count() > 0:
+            self.move_tab_between_hosts(secondary_tabs, self.tab_widget, 0)
+        self._refresh_display_menu()
+
+    def move_tab_between_hosts(self, source_host, target_host, index):
+        if source_host is None or target_host is None:
+            return
+        if source_host is target_host:
+            return
+        if not (0 <= index < source_host.count()):
+            return
+
+        widget = source_host.widget(index)
+        title = source_host.tabText(index)
+        source_host.removeTab(index)
+        target_index = target_host.addTab(widget, title)
+        self._set_custom_close_button(target_host, target_index)
+        target_host.setCurrentIndex(target_index)
+
+        if source_host is self.tab_widget:
+            QTimer.singleShot(0, self._update_tab_navigation_controls)
+        if target_host is self.tab_widget:
+            QTimer.singleShot(0, self._update_tab_navigation_controls)
+        if target_host is self.secondary_tab_widget:
+            self._set_dual_host_visible(True)
+        if source_host is self.secondary_tab_widget and self.secondary_tab_widget.count() == 0:
+            self._set_dual_host_visible(False)
+        self._refresh_display_menu()
+
+    def _handle_tab_change_for_host(self, host, index):
+        if host is self.tab_widget:
+            self._debounced_tab_change(index)
+            return
+
+        if index < 0 or host is None:
+            return
+
+        if self.iris:
+            widget = host.widget(index)
+            mode = "band"
+            if hasattr(widget, "band_frames"):
+                mode = "band"
+            elif RawViewer is not None and hasattr(widget, "findChild") and widget.findChild(RawViewer):
+                mode = "raw"
+            elif PlaybackApp is not None and hasattr(widget, "findChild") and widget.findChild(PlaybackApp):
+                mode = "video"
+            elif VideoModeHandler is not None and hasattr(widget, "findChild") and widget.findChild(VideoModeHandler):
+                mode = "live"
+            elif hasattr(widget, "original_tiles_per_frame"):
+                mode = "tiled"
+            elif TiledDisplay is not None and hasattr(widget, "findChild") and widget.findChild(TiledDisplay):
+                mode = "tiled"
+            self.iris.notify_tab_activated(index, widget, mode)
+
+        for tab_host in self._all_tab_hosts():
+            for i in range(tab_host.count()):
+                if tab_host is host and i == index:
+                    continue
+                app = tab_host.widget(i)
+                if hasattr(app, 'view_cache'):
+                    app.view_cache.clear()
 
     def _trigger_iris_analysis(self, widget):
         """Trigger Iris background analysis on folder load."""
@@ -635,90 +1183,96 @@ class MainApp(QMainWindow):
                 'tiled': []
             }
         }
-        for i in range(self.tab_widget.count()):
-            widget = self.tab_widget.widget(i)
-            title = self.tab_widget.tabText(i)
+        for host in self._all_tab_hosts():
+            if host is self.secondary_tab_widget:
+                screen_name = 'right'
+            elif self.secondary_window is not None and host is self.secondary_window.tab_widget:
+                screen_name = 'secondary'
+            else:
+                screen_name = 'main'
+            for i in range(host.count()):
+                widget = host.widget(i)
+                title = host.tabText(i)
             # Band mode
-            if isinstance(widget, BandStitchProApp):
-                try:
-                    st = widget.save_state()
-                except Exception:
-                    st = {}
-                data['modes']['band'].append({'title': title, 'state': st})
-                continue
+                if isinstance(widget, BandStitchProApp):
+                    try:
+                        st = widget.save_state()
+                    except Exception:
+                        st = {}
+                    data['modes']['band'].append({'title': title, 'state': st, 'screen': screen_name})
+                    continue
 
             # Raw mode (container with RawViewer child)
-            try:
-                raw_child = None
-                if RawViewer is not None:
-                    try:
-                        raw_child = widget.findChild(RawViewer)
-                    except Exception:
-                        raw_child = None
-                if raw_child:
-                    try:
-                        st = raw_child.save_state()
-                    except Exception:
-                        st = {}
-                    data['modes']['raw'].append({'title': title, 'state': st})
-                    continue
-            except Exception:
-                pass
-
-            # Video mode (PlaybackApp)
-            try:
-                playback_child = None
-                if PlaybackApp is not None:
-                    try:
-                        playback_child = widget.findChild(PlaybackApp)
-                    except Exception:
-                        playback_child = None
-                if playback_child:
-                    try:
-                        st = playback_child.save_state()
-                    except Exception:
-                        st = {}
-                    data['modes']['video'].append({'title': title, 'state': st})
-                    continue
-            except Exception:
-                pass
-
-            # Live mode 
-            try:
-                if VideoModeHandler is not None:
-                    vm = widget.findChild(VideoModeHandler)
-                    if vm:
-                        st = {}
+                try:
+                    raw_child = None
+                    if RawViewer is not None:
                         try:
-                            if hasattr(vm, 'save_state'):
-                                st = vm.save_state()
+                            raw_child = widget.findChild(RawViewer)
+                        except Exception:
+                            raw_child = None
+                    if raw_child:
+                        try:
+                            st = raw_child.save_state()
                         except Exception:
                             st = {}
-                        data['modes']['live'].append({'title': title, 'state': st})
-            except Exception:
-                pass
+                        data['modes']['raw'].append({'title': title, 'state': st, 'screen': screen_name})
+                        continue
+                except Exception:
+                    pass
+
+            # Video mode (PlaybackApp)
+                try:
+                    playback_child = None
+                    if PlaybackApp is not None:
+                        try:
+                            playback_child = widget.findChild(PlaybackApp)
+                        except Exception:
+                            playback_child = None
+                    if playback_child:
+                        try:
+                            st = playback_child.save_state()
+                        except Exception:
+                            st = {}
+                        data['modes']['video'].append({'title': title, 'state': st, 'screen': screen_name})
+                        continue
+                except Exception:
+                    pass
+
+            # Live mode 
+                try:
+                    if VideoModeHandler is not None:
+                        vm = widget.findChild(VideoModeHandler)
+                        if vm:
+                            st = {}
+                            try:
+                                if hasattr(vm, 'save_state'):
+                                    st = vm.save_state()
+                            except Exception:
+                                st = {}
+                            data['modes']['live'].append({'title': title, 'state': st, 'screen': screen_name})
+                except Exception:
+                    pass
 
             # Tiled mode 
-            try:
-                tiled_child = None
-                if TiledDisplay is not None:
-                    try:
-                        tiled_child = widget.findChild(TiledDisplay)
-                    except Exception:
-                        tiled_child = None
-                if tiled_child:
-                    try:
-                        st = tiled_child.settings if hasattr(tiled_child, 'settings') else {}
-                    except Exception:
-                        st = {}
-                    data['modes']['tiled'].append({'title': title, 'state': st})
-                    continue
-            except Exception:
-                pass
+                try:
+                    tiled_child = None
+                    if TiledDisplay is not None:
+                        try:
+                            tiled_child = widget.findChild(TiledDisplay)
+                        except Exception:
+                            tiled_child = None
+                    if tiled_child:
+                        try:
+                            st = tiled_child.settings if hasattr(tiled_child, 'settings') else {}
+                        except Exception:
+                            st = {}
+                        data['modes']['tiled'].append({'title': title, 'state': st, 'screen': screen_name})
+                        continue
+                except Exception:
+                    pass
 
         try:
-            with open(self.session_file, 'w') as f:
-                json.dump(data, f)
+            self._write_json_atomic(self.session_file, data)
         except Exception as e:
             print(f"Error saving session: {e}")
 
@@ -728,8 +1282,7 @@ class MainApp(QMainWindow):
             QMessageBox.information(self, "No Session", "No previous session found.")
             return
         try:
-            with open(self.session_file, 'r') as f:
-                data = json.load(f)
+            data = self._read_json_file(self.session_file, default={}) or {}
 
             # determine current mode of active tab
             cur_idx = self.tab_widget.currentIndex()
@@ -857,10 +1410,8 @@ class MainApp(QMainWindow):
                             except Exception:
                                 pass
                             try:
-                                if not val.wait(2000):
-                                    print(f"[DEBUG] Thread {name} did not quit gracefully, terminating")
-                                    val.terminate()
-                                    val.wait(1000)
+                                if not val.wait(3000):
+                                    print(f"[DEBUG] Thread {name} did not quit gracefully; leaving it to finish during shutdown")
                             except Exception:
                                 pass
                 except Exception:
@@ -875,8 +1426,10 @@ class MainApp(QMainWindow):
             pass
 
     def closeEvent(self, event: QCloseEvent):
+        self._app_is_closing = True
         # Show progress dialog for shutdown
-        tab_count = self.tab_widget.count()
+        all_hosts = self._all_tab_hosts()
+        tab_count = sum(host.count() for host in all_hosts)
         if tab_count > 0:
             progress = QProgressDialog("Closing application...", None, 0, tab_count, self)
             progress.setWindowModality(Qt.WindowModal)
@@ -887,11 +1440,15 @@ class MainApp(QMainWindow):
             progress.show()
             
             # Perform cleanup on all tab widgets
-            for i in range(tab_count):
-                w = self.tab_widget.widget(i)
-                if w is not None:
-                    progress.setLabelText(f"Closing tab {i+1} of {tab_count}...")
-                    progress.setValue(i)
+            pos = 0
+            for host in all_hosts:
+                for i in range(host.count()):
+                    w = host.widget(i)
+                    if w is None:
+                        continue
+                    pos += 1
+                    progress.setLabelText(f"Closing tab {pos} of {tab_count}...")
+                    progress.setValue(pos)
                     QApplication.processEvents()  # Allow UI updates
                     self._cleanup_tab_widget(w)
             
@@ -901,6 +1458,12 @@ class MainApp(QMainWindow):
         
         self.save_session()  # Auto-save on app close
         self.ram_timer.stop()
+
+        if self.secondary_window is not None:
+            try:
+                self.secondary_window.close()
+            except Exception:
+                pass
         
         if tab_count > 0:
             progress.setLabelText("Shutdown complete")
@@ -934,9 +1497,7 @@ class MainApp(QMainWindow):
                         if widget._rgb_worker.isRunning():
                             widget._rgb_worker.requestInterruption()
                             widget._rgb_worker.quit()
-                            if not widget._rgb_worker.wait(2000):
-                                widget._rgb_worker.terminate()
-                                widget._rgb_worker.wait(1000)
+                            widget._rgb_worker.wait(3000)
                 except Exception:
                     pass
                 
@@ -950,9 +1511,7 @@ class MainApp(QMainWindow):
                                     if w.worker.isRunning():
                                         w.worker.requestInterruption()
                                         w.worker.quit()
-                                        if not w.worker.wait(2000):
-                                            w.worker.terminate()
-                                            w.worker.wait(1000)
+                                        w.worker.wait(3000)
                                 except Exception:
                                     pass
                 except Exception:
@@ -963,10 +1522,7 @@ class MainApp(QMainWindow):
                     if hasattr(widget, 'view_worker') and widget.view_worker and widget.view_worker.isRunning():
                         widget.view_worker.requestInterruption()
                         widget.view_worker.quit()
-                        widget.view_worker.wait(2000)
-                        if widget.view_worker.isRunning():
-                            widget.view_worker.terminate()
-                            widget.view_worker.wait(1000)
+                        widget.view_worker.wait(3000)
                 except Exception:
                     pass
                 
@@ -975,10 +1531,7 @@ class MainApp(QMainWindow):
                     if hasattr(widget, 'worker') and widget.worker and widget.worker.isRunning():
                         widget.worker.requestInterruption()
                         widget.worker.quit()
-                        widget.worker.wait(2000)
-                        if widget.worker.isRunning():
-                            widget.worker.terminate()
-                            widget.worker.wait(1000)
+                        widget.worker.wait(3000)
                 except Exception:
                     pass
             
@@ -989,10 +1542,7 @@ class MainApp(QMainWindow):
                     if hasattr(widget, 'loading_thread') and widget.loading_thread and widget.loading_thread.isRunning():
                         widget.loading_thread.requestInterruption()
                         widget.loading_thread.quit()
-                        widget.loading_thread.wait(2000)
-                        if widget.loading_thread.isRunning():
-                            widget.loading_thread.terminate()
-                            widget.loading_thread.wait(1000)
+                        widget.loading_thread.wait(3000)
                 except Exception:
                     pass
                 
@@ -1000,10 +1550,7 @@ class MainApp(QMainWindow):
                     if hasattr(widget, 'stack_thread') and widget.stack_thread and widget.stack_thread.isRunning():
                         widget.stack_thread.requestInterruption()
                         widget.stack_thread.quit()
-                        widget.stack_thread.wait(2000)
-                        if widget.stack_thread.isRunning():
-                            widget.stack_thread.terminate()
-                            widget.stack_thread.wait(1000)
+                        widget.stack_thread.wait(3000)
                 except Exception:
                     pass
             
@@ -1053,28 +1600,7 @@ class MainApp(QMainWindow):
     def _handle_tab_change(self, index):
         self._last_real_tab_index = index
         self._update_tab_navigation_controls()
-        if self.iris:
-            widget = self.tab_widget.widget(index)
-            mode = "band"
-            if hasattr(widget, "band_frames"):
-                mode = "band"
-            elif RawViewer is not None and hasattr(widget, "findChild") and widget.findChild(RawViewer):
-                mode = "raw"
-            elif PlaybackApp is not None and hasattr(widget, "findChild") and widget.findChild(PlaybackApp):
-                mode = "video"
-            elif VideoModeHandler is not None and hasattr(widget, "findChild") and widget.findChild(VideoModeHandler):
-                mode = "live"
-            elif hasattr(widget, "original_tiles_per_frame"):
-                mode = "tiled"
-            elif TiledDisplay is not None and hasattr(widget, "findChild") and widget.findChild(TiledDisplay):
-                mode = "tiled"
-            self.iris.notify_tab_activated(index, widget, mode)
-
-        for i in range(self.tab_widget.count()):
-            if i != index:
-                app = self.tab_widget.widget(i)
-                if hasattr(app, 'view_cache'):
-                    app.view_cache.clear()
+        self._handle_tab_change_for_host(self.tab_widget, index)
 
     def _is_real_tab_index(self, index: int) -> bool:
         return 0 <= index < self.tab_widget.count()
@@ -1170,14 +1696,15 @@ class MainApp(QMainWindow):
         tab_bar.update()
         QTimer.singleShot(0, self._update_tab_navigation_controls)
 
-    def _insert_real_tab(self, widget, title: str) -> int:
-        tab_index = self.tab_widget.addTab(widget, title)
-        self._set_custom_close_button(tab_index)
-        self.tab_widget.setCurrentIndex(tab_index)
-        self._last_real_tab_index = tab_index
-        # Use two deferred calls: first let Qt lay out the new tab, then update
-        QTimer.singleShot(0, self._update_tab_navigation_controls)
-        QTimer.singleShot(50, self._update_tab_navigation_controls)
+    def _insert_real_tab(self, widget, title: str, target_tab_widget=None) -> int:
+        host = target_tab_widget or self.tab_widget
+        tab_index = host.addTab(widget, title)
+        self._set_custom_close_button(host, tab_index)
+        host.setCurrentIndex(tab_index)
+        if host is self.tab_widget:
+            self._last_real_tab_index = tab_index
+            QTimer.singleShot(0, self._update_tab_navigation_controls)
+            QTimer.singleShot(50, self._update_tab_navigation_controls)
         return tab_index
 
     def _attach_bottom_terminal(self, host_widget, parent_layout, content_widget):
@@ -1236,29 +1763,30 @@ class MainApp(QMainWindow):
         host_widget._terminal_splitter = splitter
         host_widget._terminal_widget = terminal_widget
 
-    def add_new_tab(self):
+    def add_new_tab(self, target_tab_widget=None):
         """Show mode selection dialog and create appropriate tab."""
         dialog = ModeSelectionDialog(self)
         if dialog.exec_() != QDialog.Accepted:
             return
 
         mode = dialog.get_selected_mode()
+        target = target_tab_widget or self.tab_widget
 
         if mode == "band":
-            self._add_band_tab()
+            self._add_band_tab(target)
         elif mode == "raw":
-            self._add_raw_tab()
+            self._add_raw_tab(target)
         elif mode == "video":
-            self._add_video_tab()
+            self._add_video_tab(target)
         elif mode == "live":
-            self._add_live_tab()
+            self._add_live_tab(target)
         elif mode == "tiled":
-            self._add_tiled_tab()
+            self._add_tiled_tab(target)
 
-    def _add_band_tab(self):
+    def _add_band_tab(self, target_tab_widget=None):
         """Create a new Band Mode tab."""
         app = BandStitchProApp(main_app=self)
-        tab_index = self._insert_real_tab(app, "Band Mode")
+        tab_index = self._insert_real_tab(app, "Band Mode", target_tab_widget)
         if self.iris:
             self.iris.notify_tab_activated(tab_index, app, "band")
         
@@ -1274,7 +1802,7 @@ class MainApp(QMainWindow):
             except Exception as e:
                 print(f"[Iris] Failed to wire frame-slider integration: {e}")
 
-    def _add_raw_tab(self):
+    def _add_raw_tab(self, target_tab_widget=None):
         """Create a new Raw Mode tab."""
         if RawViewer is None:
             QMessageBox.warning(self, "Warning", "Raw Mode not available (missing raw_mode module)")
@@ -1293,9 +1821,9 @@ class MainApp(QMainWindow):
 
         self._attach_bottom_terminal(raw_widget, layout, content)
         
-        self._insert_real_tab(raw_widget, "Raw Mode")
+        self._insert_real_tab(raw_widget, "Raw Mode", target_tab_widget)
 
-    def _add_video_tab(self):
+    def _add_video_tab(self, target_tab_widget=None):
         """Create a new Video Mode tab."""
         if PlaybackApp is None:
             QMessageBox.warning(self, "Warning", "Video Mode not available (missing video_mode module)")
@@ -1315,9 +1843,9 @@ class MainApp(QMainWindow):
 
         self._attach_bottom_terminal(video_widget, layout, content)
         
-        self._insert_real_tab(video_widget, "Video Mode")
+        self._insert_real_tab(video_widget, "Video Mode", target_tab_widget)
 
-    def _add_tiled_tab(self):
+    def _add_tiled_tab(self, target_tab_widget=None):
         """Create a new Tiled Mode tab."""
         if TiledDisplay is None:
             QMessageBox.warning(self, "Warning", "Tiled Mode not available (missing tiled_viewer module)")
@@ -1337,11 +1865,11 @@ class MainApp(QMainWindow):
 
         self._attach_bottom_terminal(tiled_widget, layout, content)
         
-        self._insert_real_tab(tiled_widget, "Tiled Mode")
+        self._insert_real_tab(tiled_widget, "Tiled Mode", target_tab_widget)
 
-    def _add_live_tab(self):
+    def _add_live_tab(self, target_tab_widget=None):
         """Create a new Live Display tab."""
-        self.add_live_tab()  # Reuse existing logic
+        self.add_live_tab(target_tab_widget=target_tab_widget)  # Reuse existing logic
     
     def update_tab_name(self, app, name):
         self.update_tab_name_for_widget(app, name)
@@ -1352,33 +1880,36 @@ class MainApp(QMainWindow):
         try:
             w = widget
             while w is not None:
-                index = self.tab_widget.indexOf(w)
-                if index != -1:
-                    self.tab_widget.setTabText(index, str(name))
-                    return
+                for host in self._all_tab_hosts():
+                    index = host.indexOf(w)
+                    if index != -1:
+                        host.setTabText(index, str(name))
+                        return
                 w = w.parentWidget()
         except Exception:
             pass
 
-    def _set_custom_close_button(self, index):
+    def _set_custom_close_button(self, host, index):
         close_btn = QToolButton()
         close_btn.setText("×")  # Trendy Unicode cross
         close_btn.setFixedSize(16, 16)  # Slightly smaller close affordance
         close_btn.setProperty("class", "tab-close")  # For stylesheet targeting
         close_btn.setToolTip("Close this tab")
-        close_btn.clicked.connect(lambda _checked=False, btn=close_btn: self._close_tab_from_button(btn))
-        self.tab_widget.tabBar().setTabButton(index, QTabBar.RightSide, close_btn)
+        close_btn.clicked.connect(
+            lambda _checked=False, tab_host=host, btn=close_btn: self._close_tab_from_button(tab_host, btn)
+        )
+        host.tabBar().setTabButton(index, QTabBar.RightSide, close_btn)
 
-    def _close_tab_from_button(self, button):
-        if button is None:
+    def _close_tab_from_button(self, host, button):
+        if button is None or host is None:
             return
-        tab_bar = self.tab_widget.tabBar()
-        for index in range(self.tab_widget.count()):
+        tab_bar = host.tabBar()
+        for index in range(host.count()):
             if tab_bar.tabButton(index, QTabBar.RightSide) is button:
-                self.close_tab(index)
+                self.close_tab(index, tab_widget=host)
                 return
     
-    def add_live_tab(self):
+    def add_live_tab(self, target_tab_widget=None):
         live_widget = QWidget()
         layout = QVBoxLayout()
         live_widget.setLayout(layout)
@@ -1396,20 +1927,24 @@ class MainApp(QMainWindow):
 
         self._attach_bottom_terminal(live_widget, layout, content)
 
+        target_host = target_tab_widget or self.tab_widget
         dataset_app = None
-        cur = self.tab_widget.currentWidget()
+        cur = self._current_host_widget(preferred_host=target_host)
 
         if cur and cur.__class__.__name__ == "BandStitchProApp":
             dataset_app = cur
         else:
-            for i in range(self.tab_widget.count()):
-                candidate = self.tab_widget.widget(i)
-                if candidate and candidate.__class__.__name__ == "BandStitchProApp":
-                    dataset_app = candidate
+            for host in [target_host] + [h for h in self._all_tab_hosts() if h is not target_host]:
+                for i in range(host.count()):
+                    candidate = host.widget(i)
+                    if candidate and candidate.__class__.__name__ == "BandStitchProApp":
+                        dataset_app = candidate
+                        break
+                if dataset_app is not None:
                     break
 
         if dataset_app is None:
-            self._insert_real_tab(live_widget, "Live Display")
+            self._insert_real_tab(live_widget, "Live Display", target_host)
             return
 
         try:
@@ -1438,7 +1973,7 @@ class MainApp(QMainWindow):
 
             band_frames = getattr(dataset_app, 'band_frames', None)
             if not band_frames:
-                self._insert_real_tab(live_widget, "Live Display")
+                self._insert_real_tab(live_widget, "Live Display", target_host)
                 return
 
             band_enabled_map = getattr(dataset_app, 'band_enabled', {}) or {}
@@ -1520,7 +2055,7 @@ class MainApp(QMainWindow):
             print("add_live_tab (safe) encountered:", e)
 
         # finally add the live tab to main tab widget
-        self._insert_real_tab(live_widget, "Live Display")
+        self._insert_real_tab(live_widget, "Live Display", target_host)
 
     def add_video_tab(self, folder: str = None, width: int = None,
                       height: int = None, bitdepth: int = None):
@@ -1571,31 +2106,32 @@ class MainApp(QMainWindow):
         # Get a descriptive name for the tab
         tab_name = "Edited Image"
         try:
-            for i in range(self.tab_widget.count()):
-                if self.tab_widget.widget(i) == source_viewer.parent():
-                    tab_name = f"Edited {self.tab_widget.tabText(i)}"
-                    break
+            host, index = self._find_host_for_widget(source_viewer)
+            if host is not None and index != -1:
+                tab_name = f"Edited {host.tabText(index)}"
         except Exception:
             pass
-        self._insert_real_tab(editor, tab_name)
+        source_host, _ = self._find_host_for_widget(source_viewer)
+        self._insert_real_tab(editor, tab_name, source_host or self.tab_widget)
         
-    def close_tab(self, index):
-        if self._real_tab_count() <= 1:
+    def close_tab(self, index, tab_widget=None):
+        host = tab_widget or self.tab_widget
+        if self._total_tab_count() <= 1:
             QMessageBox.warning(self, "Warning", "Cannot close the last tab")
             return
 
-        if index < 0 or index >= self.tab_widget.count():
+        if index < 0 or index >= host.count():
             print(f"[DEBUG] Ignoring invalid close_tab index: {index}")
             return
 
         self.save_session()
-        widget = self.tab_widget.widget(index)
+        widget = host.widget(index)
         if widget is None:
             print(f"[DEBUG] No widget found for tab index: {index}")
             return
 
         def finalize_close():
-            current_index = self.tab_widget.indexOf(widget)
+            current_index = host.indexOf(widget)
             if current_index == -1:
                 try:
                     widget.close()
@@ -1609,17 +2145,18 @@ class MainApp(QMainWindow):
                 widget.close()
             except Exception as e:
                 print(f"[DEBUG] Error closing tab widget at index {current_index}: {e}")
-            self.tab_widget.removeTab(current_index)
-            fallback_index = min(current_index, max(0, self._real_tab_count() - 1))
-            if self._is_real_tab_index(fallback_index):
-                self.tab_widget.setCurrentIndex(fallback_index)
+            host.removeTab(current_index)
+            fallback_index = min(current_index, max(0, host.count() - 1))
+            if host.count() > 0 and 0 <= fallback_index < host.count():
+                host.setCurrentIndex(fallback_index)
             try:
                 widget.setParent(None)
             except Exception:
                 pass
             widget.deleteLater()
-            self._last_real_tab_index = self.tab_widget.currentIndex() if self._is_real_tab_index(self.tab_widget.currentIndex()) else max(0, self._real_tab_count() - 1)
-            QTimer.singleShot(0, self._update_tab_navigation_controls)
+            if host is self.tab_widget:
+                self._last_real_tab_index = self.tab_widget.currentIndex() if self._is_real_tab_index(self.tab_widget.currentIndex()) else max(0, self._real_tab_count() - 1)
+                QTimer.singleShot(0, self._update_tab_navigation_controls)
             
         if hasattr(widget, 'band_enabled'):
             for key in list(widget.band_enabled.keys()):
@@ -1647,7 +2184,8 @@ class MainApp(QMainWindow):
                 video_mode.connectCamera()
             
             # Show countdown dialog
-            progress = QProgressDialog("Safely closing Live Display...\nRemaining: 2 seconds", None, 0, 2, self)
+            owner = self.secondary_window if (self.secondary_window is not None and host is self.secondary_window.tab_widget) else self
+            progress = QProgressDialog("Safely closing Live Display...\nRemaining: 2 seconds", None, 0, 2, owner)
             progress.setWindowModality(Qt.WindowModal)
             progress.setMinimumDuration(0)
             progress.setValue(0)
@@ -1684,6 +2222,7 @@ class MainApp(QMainWindow):
             finalize_close()
 
 if __name__ == "__main__":
+    install_toast_message_box_hook()
     qInstallMessageHandler(_qt_message_handler)
     app = QApplication(sys.argv)
     window = MainApp()

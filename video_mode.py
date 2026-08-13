@@ -1,6 +1,4 @@
 import os
-os.environ.pop('XDG_SESSION_TYPE', None)
-os.environ['QT_QPA_PLATFORM'] = 'wayland'
 import numpy as np
 from PIL import Image
 import gc
@@ -33,6 +31,24 @@ def unpack_by_bitdepth(data, w, h, bitdepth):
     try:
         if bitdepth == 8:
             return np.frombuffer(data, dtype=np.uint8).reshape((-1, h, w))
+        elif bitdepth == 32:
+            total_pixels = w * h
+            bytes_per_frame = total_pixels * 4
+            num_frames = len(data) // bytes_per_frame
+            frames = []
+            for i in range(num_frames):
+                start = i * bytes_per_frame
+                chunk = data[start:start + bytes_per_frame]
+                raw = np.frombuffer(chunk, dtype='<u4', count=total_pixels)
+                if raw.size < total_pixels:
+                    continue
+                raw = raw.reshape((h, w))
+                scaled = np.clip(
+                    raw.astype(np.float64) * (255.0 / 4294967295.0),
+                    0, 255
+                ).astype(np.uint8)
+                frames.append(scaled)
+            return frames
         elif bitdepth == 16:
             total_pixels = w * h
             bytes_per_frame = total_pixels * 2
@@ -123,6 +139,8 @@ class FrameSource:
             self.frame_size = total_pixels
         elif self.bitdepth == 16:
             self.frame_size = total_pixels * 2
+        elif self.bitdepth == 32:
+            self.frame_size = total_pixels * 4
         elif self.bitdepth == 10:
             self.frame_size = (total_pixels * 10) // 8
         elif self.bitdepth == 12:
@@ -538,7 +556,7 @@ class PlaybackApp(QWidget):
 
         left_layout.addWidget(QLabel("Bit Depth:"))
         self.bitdepth_var = QComboBox()
-        self.bitdepth_var.addItems(["8", "10", "12"])
+        self.bitdepth_var.addItems(["8", "10", "12", "16", "32"])
         self.bitdepth_var.setCurrentText(str(self.bitdepth))
         left_layout.addWidget(self.bitdepth_var)
         self.bitdepth_var.currentIndexChanged.connect(self.invalidate_video)
@@ -963,7 +981,7 @@ class PlaybackApp(QWidget):
             self.preview_rgb_btn.setEnabled(True)
             self.process_btn.setEnabled(True)
         else:
-            QMessageBox.information(self, "No band files", "No band files detected in selected folder.")
+            QMessageBox.warning(self, "No band files", "No band files detected in selected folder.")
 
     def _show_recent_menu(self):
         try:
@@ -1001,6 +1019,7 @@ class PlaybackApp(QWidget):
 
     def process_data(self):
         if not self.current_folder:
+            QMessageBox.critical(self, "Error", "No folder selected. Please select a folder first.")
             return
         try:
             self.height = int(self.height_entry.text())

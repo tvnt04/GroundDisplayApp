@@ -77,13 +77,26 @@ class IndividualBandWorker(QThread):
                 self.progress.emit(100)
             else:
                 num_frames = self.end_frame - self.start_frame + 1
+                w = getattr(self.frames, 'w', 8448)
+                h = getattr(self.frames, 'h', 384)
+                bytes_per_frame = int(w) * int(h) * 2 * 3
+                estimated_bytes = bytes_per_frame * num_frames
+                safe_limit = int(psutil.virtual_memory().available * 0.30)
+                
+                step = 1
+                if safe_limit > 0 and estimated_bytes > safe_limit:
+                    step = max(2, (estimated_bytes + safe_limit - 1) // safe_limit)
+                
+                frame_indices = list(range(self.start_frame, self.end_frame + 1))[::step]
+                num_frames_to_load = len(frame_indices)
+                
                 parts_display = []
                 parts_raw = []
                 parts_raw_unscaled = []
-                for i_idx, i in enumerate(range(self.start_frame, self.end_frame + 1)):
+                for i_idx, i in enumerate(frame_indices):
                     if self.isInterruptionRequested():
                         return
-                    self.progress.emit(int((i_idx + 1) / num_frames * 100))
+                    self.progress.emit(int((i_idx + 1) / num_frames_to_load * 100))
                     frame = self.frames[i]
                     frame = parent.apply_offset(frame, self.offset_x, self.offset_y, crop_y=True)
                     display_frame = parent.apply_contrast_enhancement(frame) if self.enhance else frame.copy()
@@ -91,7 +104,6 @@ class IndividualBandWorker(QThread):
                         raw_frame = self.frames.get_raw(i)
                         raw_frame = parent.apply_offset(raw_frame, self.offset_x, self.offset_y, crop_y=True)
                         raw_frame_unscaled = raw_frame.copy()
-                        # Scale raw frame to full 16-bit range for proper display brightness
                         if hasattr(self.frames, 'bitdepth'):
                             bd = self.frames.bitdepth
                             if bd == 8:
@@ -110,7 +122,7 @@ class IndividualBandWorker(QThread):
                         raw_frame = frame.copy()
                         parts_raw.append(raw_frame)
                         parts_raw_unscaled.append(raw_frame)
-                    if i < self.end_frame:
+                    if i_idx < num_frames_to_load - 1:
                         gap_arr = np.zeros((self.gap, display_frame.shape[1]), dtype=np.uint8)
                         display_frame = np.vstack([display_frame, gap_arr])
                         raw_frame = np.vstack([raw_frame, gap_arr.copy()])
@@ -119,9 +131,6 @@ class IndividualBandWorker(QThread):
                 full_raw = np.vstack(parts_raw)
                 full_raw_unscaled = np.vstack(parts_raw_unscaled)
                 pil_display = Image.fromarray(full_display)
-                # PIL cannot represent multi-channel uint16 as standard RGB.
-                # Keep high-bit raw data in ndarray (`original_raw_data`) and pass
-                # an 8-bit preview PIL for viewer rendering.
                 pil_raw = pil_display
             self.finished.emit({'display': pil_display, 'raw': pil_raw, 'raw_array': full_raw_unscaled if 'full_raw_unscaled' in locals() else raw_array})
         except Exception as e:
@@ -162,7 +171,6 @@ class MergedBandWorker(QThread):
                     raw_left = self.band_frames[self.left_key].get_raw(self.start_frame)
                     raw_left = parent.apply_offset(raw_left, self.offset_x, self.offset_y, crop_y=True)
                     raw_left_unscaled = raw_left.copy()
-                    # Scale raw frame to full 16-bit range for proper display brightness
                     if hasattr(self.band_frames[self.left_key], 'bitdepth'):
                         bd = self.band_frames[self.left_key].bitdepth
                         if bd == 8:
@@ -183,7 +191,6 @@ class MergedBandWorker(QThread):
                     raw_right = self.band_frames[self.right_key].get_raw(self.start_frame)
                     raw_right = parent.apply_offset(raw_right, self.offset_x, self.offset_y, crop_y=True)
                     raw_right_unscaled = raw_right.copy()
-                    # Scale raw frame to full 16-bit range for proper display brightness
                     if hasattr(self.band_frames[self.right_key], 'bitdepth'):
                         bd = self.band_frames[self.right_key].bitdepth
                         if bd == 8:
@@ -209,15 +216,29 @@ class MergedBandWorker(QThread):
                 self.finished.emit({'display': pil_display, 'raw': pil_raw, 'raw_array': raw_array})
             else:
                 num_frames = self.end_frame - self.start_frame + 1
+                lf = self.band_frames[self.left_key]
+                w = getattr(lf, 'w', 8448) * 2
+                h = getattr(lf, 'h', 384)
+                bytes_per_frame = int(w) * int(h) * 2 * 3
+                estimated_bytes = bytes_per_frame * num_frames
+                safe_limit = int(psutil.virtual_memory().available * 0.30)
+                
+                step = 1
+                if safe_limit > 0 and estimated_bytes > safe_limit:
+                    step = max(2, (estimated_bytes + safe_limit - 1) // safe_limit)
+                
+                frame_indices = list(range(self.start_frame, self.end_frame + 1))[::step]
+                num_frames_to_load = len(frame_indices)
+                
                 parts_display = []
                 parts_raw = []
                 parts_raw_unscaled = []
                 parts_raw_unscaled_left = []
                 parts_raw_unscaled_right = []
-                for i_idx, i in enumerate(range(self.start_frame, self.end_frame + 1)):
+                for i_idx, i in enumerate(frame_indices):
                     if self.isInterruptionRequested():
                         return
-                    self.progress.emit(int((i_idx + 1) / num_frames * 100))
+                    self.progress.emit(int((i_idx + 1) / num_frames_to_load * 100))
                     left_frame = self.band_frames[self.left_key][i]
                     right_frame = self.band_frames[self.right_key][i]
                     left_frame = parent.apply_offset(left_frame, self.offset_x, self.offset_y, crop_y=True)
@@ -228,7 +249,6 @@ class MergedBandWorker(QThread):
                         raw_left = self.band_frames[self.left_key].get_raw(i)
                         raw_left = parent.apply_offset(raw_left, self.offset_x, self.offset_y, crop_y=True)
                         raw_left_unscaled = raw_left.copy()
-                        # Scale raw frame to full 16-bit range for proper display brightness
                         if hasattr(self.band_frames[self.left_key], 'bitdepth'):
                             bd = self.band_frames[self.left_key].bitdepth
                             if bd == 8:
@@ -249,7 +269,6 @@ class MergedBandWorker(QThread):
                         raw_right = self.band_frames[self.right_key].get_raw(i)
                         raw_right = parent.apply_offset(raw_right, self.offset_x, self.offset_y, crop_y=True)
                         raw_right_unscaled = raw_right.copy()
-                        # Scale raw frame to full 16-bit range for proper display brightness
                         if hasattr(self.band_frames[self.right_key], 'bitdepth'):
                             bd = self.band_frames[self.right_key].bitdepth
                             if bd == 8:
@@ -269,7 +288,7 @@ class MergedBandWorker(QThread):
                     display_full = np.hstack([display_left, display_right])
                     raw_full = np.hstack([raw_left, raw_right])
                     raw_full_unscaled = np.hstack([raw_left_unscaled, raw_right_unscaled])
-                    if i < self.end_frame:
+                    if i_idx < num_frames_to_load - 1:
                         gap_arr = np.zeros((self.gap, display_full.shape[1]), dtype=np.uint8)
                         display_full = np.vstack([display_full, gap_arr])
                         raw_full = np.vstack([raw_full, gap_arr.copy()])
@@ -282,8 +301,6 @@ class MergedBandWorker(QThread):
                 full_raw = np.vstack(parts_raw)
                 full_raw_unscaled = np.vstack(parts_raw_unscaled)
                 pil_display = Image.fromarray(full_display)
-                # PIL does not support 3-channel uint16 RGB consistently.
-                # Keep raw high-bit data in `original_raw_data` instead.
                 pil_raw = pil_display
             self.finished.emit({'display': pil_display, 'raw': pil_raw, 'raw_array': full_raw_unscaled})
         except Exception as e:
@@ -346,23 +363,35 @@ class PanBandWorker(QThread):
                 full_display = np.vstack(parts_display)
                 full_raw = np.vstack(parts_raw)
                 pil_display = Image.fromarray(full_display)
-                # For RGB fusion, `full_raw` can be uint16 RGB, which PIL can't build as RGB.
-                # Keep high-bit data in `original_raw_data`; pass 8-bit preview PIL here.
                 pil_raw = pil_display
             else:
                 num_frames = self.end_frame - self.start_frame + 1
+                lf = self.band_frames[self.unbinned_keys[0]] if self.unbinned_keys else None
+                w = getattr(lf, 'w', 8448) * 2
+                h = getattr(lf, 'h', 384) * len(base_keys)
+                bytes_per_frame = int(w) * int(h) * 2 * 3
+                estimated_bytes = bytes_per_frame * num_frames
+                safe_limit = int(psutil.virtual_memory().available * 0.30)
+                
+                step = 1
+                if safe_limit > 0 and estimated_bytes > safe_limit:
+                    step = max(2, (estimated_bytes + safe_limit - 1) // safe_limit)
+                
+                frame_indices = list(range(self.start_frame, self.end_frame + 1))[::step]
+                num_frames_to_load = len(frame_indices)
+                
                 parts_display = []
                 parts_raw = []
-                for i_idx, i in enumerate(range(self.start_frame, self.end_frame + 1)):
+                for i_idx, i in enumerate(frame_indices):
                     if self.isInterruptionRequested():
                         return
-                    frame_progress = int((i_idx + 1) / num_frames * 100)
+                    frame_progress = int((i_idx + 1) / num_frames_to_load * 100)
                     self.progress.emit(frame_progress)
                     frame_parts_display = []
                     frame_parts_raw = []
                     num_bases = len(base_keys)
                     for j, base_key in enumerate(base_keys):
-                        sub_progress = int(frame_progress + (j / num_bases) * (100 / num_frames))
+                        sub_progress = int(frame_progress + (j / num_bases) * (100 / num_frames_to_load))
                         self.progress.emit(sub_progress)
                         left_key = f"{base_key}_left"
                         right_key = f"{base_key}_right"
@@ -386,7 +415,7 @@ class PanBandWorker(QThread):
                             raw_right = right_frame.copy()
                         display_full = np.hstack([display_left, display_right])
                         raw_full = np.hstack([raw_left, raw_right])
-                        if i < self.end_frame:
+                        if i_idx < num_frames_to_load - 1:
                             gap_arr = np.zeros((self.gap, display_full.shape[1]), dtype=np.uint8)
                             display_full = np.vstack([display_full, gap_arr])
                             raw_full = np.vstack([raw_full, gap_arr.copy()])
@@ -399,13 +428,30 @@ class PanBandWorker(QThread):
                 full_display = np.vstack(parts_display)
                 full_raw = np.vstack(parts_raw)
                 pil_display = Image.fromarray(full_display)
-                pil_raw = Image.fromarray(full_raw)
+                pil_raw = pil_display
             self.progress.emit(100)
             self.finished.emit({'display': pil_display, 'raw': pil_raw, 'raw_array': full_raw if 'full_raw' in locals() else frame_full_raw})
         except Exception as e:
             self.error.emit(str(e))
 
 class BandViewsMixin:     
+    def _stop_thread(self, worker, wait_ms=1500):
+        if worker is None:
+            return
+        try:
+            worker.requestInterruption()
+        except Exception:
+            pass
+        try:
+            worker.quit()
+        except Exception:
+            pass
+        try:
+            if worker.isRunning():
+                worker.wait(wait_ms)
+        except Exception:
+            pass
+
     def _safe_get_band_frame(self, key, idx):
         """Safely return a specific frame for a band key, None if not available."""
         if key not in self.band_frames:
@@ -558,6 +604,24 @@ class BandViewsMixin:
                                 'base': base, 'kind': 'paired_unbinned', 'per_block_h': per_h, 'bin_factor': bin_factor,
                                 'is_split': False, 'side': None, 'left_key': left_k, 'right_key': right_k
                             })
+                        else:
+                            # Include a lone side if only one half is available.
+                            candidate_left = f"{base}_left"
+                            candidate_right = f"{base}_right"
+                            if candidate_left in band_frames:
+                                orig_per_h = self._height_from_key(candidate_left, default=orig_band_h, bin_factor=bin_factor)
+                                per_h = max(1, orig_per_h - abs(offset_y))
+                                stitch_sequence.append({
+                                    'base': base, 'kind': 'half_left', 'per_block_h': per_h, 'bin_factor': bin_factor,
+                                    'is_split': True, 'side': 'left', 'key': candidate_left
+                                })
+                            if candidate_right in band_frames:
+                                orig_per_h = self._height_from_key(candidate_right, default=orig_band_h, bin_factor=bin_factor)
+                                per_h = max(1, orig_per_h - abs(offset_y))
+                                stitch_sequence.append({
+                                    'base': base, 'kind': 'half_right', 'per_block_h': per_h, 'bin_factor': bin_factor,
+                                    'is_split': True, 'side': 'right', 'key': candidate_right
+                                })
                         continue
 
                     k = full_unbinned_by_base.get(base)
@@ -612,6 +676,25 @@ class BandViewsMixin:
                             })
                             stitch_sequence.append({
                                 'base': base, 'kind': 'half_right', 'per_block_h': per_h_right, 'bin_factor': bin_factor,
+                                'is_split': True, 'side': 'right', 'key': right_k
+                            })
+                    else:
+                        # If only one side exists, include that half so it still appears in All Bands.
+                        info = bands_info_local.get(base, {})
+                        bin_factor = int(info.get('bin_factor', 1)) or 1
+                        offset_y = int(self.band_offsets.get(base, {'y': 0})['y'])
+                        if left_k in band_frames:
+                            orig_per_h = self._height_from_key(left_k, default=orig_band_h, bin_factor=bin_factor)
+                            per_h = max(1, orig_per_h - abs(offset_y))
+                            stitch_sequence.append({
+                                'base': base, 'kind': 'half_left', 'per_block_h': per_h, 'bin_factor': bin_factor,
+                                'is_split': True, 'side': 'left', 'key': left_k
+                            })
+                        if right_k in band_frames:
+                            orig_per_h = self._height_from_key(right_k, default=orig_band_h, bin_factor=bin_factor)
+                            per_h = max(1, orig_per_h - abs(offset_y))
+                            stitch_sequence.append({
+                                'base': base, 'kind': 'half_right', 'per_block_h': per_h, 'bin_factor': bin_factor,
                                 'is_split': True, 'side': 'right', 'key': right_k
                             })
                 for k in full_unbinned_keys:
@@ -858,12 +941,8 @@ class BandViewsMixin:
             return
 
         # Perform unload similar to unload_individual_subtab
-        if hasattr(widget, 'worker') and widget.worker and widget.worker.isRunning():
-            widget.worker.requestInterruption()
-            widget.worker.wait(2000)
-            if widget.worker.isRunning():
-                widget.worker.terminate()
-                widget.worker.wait(1000)
+        if hasattr(widget, 'worker'):
+            self._stop_thread(widget.worker, 3000)
             print(f"[DEBUG] Worker interrupted for {key}")
         if hasattr(widget, 'loading_timer') and widget.loading_timer:
             widget.loading_timer.stop()

@@ -52,9 +52,11 @@ def _process_frame_array_to_hist(frame_like, ignore_extremes):
             num_bins = min(65536, int(frame_arr.max()) + 1)  # Cap at 65536 for memory
         elif original_dtype in (np.uint64, np.int64):
             num_bins = min(65536, int(frame_arr.max()) + 1)  # Cap at 65536 for memory
+        hist_vals = np.clip(a, 0, num_bins - 1).astype(np.int64, copy=False)
     else:
         a = np.asarray(frame_like, dtype=np.uint8).ravel()
         num_bins = 256
+        hist_vals = a
     
     if a.size == 0:
         return np.zeros(num_bins, dtype=np.int64), 0.0, 0.0, 0, 255, 0
@@ -74,11 +76,11 @@ def _process_frame_array_to_hist(frame_like, ignore_extremes):
             mask = (a > 0) & (a < (1 << int(np.log2(num_bins))))
         # keep masked only if enough pixels remain otherwise use all
         if mask.sum() > max(100, a.size * 0.01):
-            a_used = a[mask]
+            a_used = hist_vals[mask]
         else:
-            a_used = a
+            a_used = hist_vals
     else:
-        a_used = a
+        a_used = hist_vals
 
     # very fast histogram in C
     hist = np.bincount(a_used, minlength=num_bins).astype(np.int64)
@@ -346,6 +348,8 @@ def _bitdepth_bytes_per_frame(total_pixels, bit_depth):
         return (total_pixels * 12) // 8
     if bit_depth == 16:
         return total_pixels * 2
+    if bit_depth == 32:
+        return total_pixels * 4
     return 0
 
 
@@ -908,6 +912,21 @@ def unpack_12bit(packed_bytes, w, h):
 
 def unpack_by_bitdepth(data, w, h, bitdepth, return_raw=False):
     """Unpack data by bitdepth. If return_raw=True, return raw bitdepth data instead of linearly mapped uint8."""
+    if bitdepth == 32:
+        total_pixels = w * h
+        if len(data) < total_pixels * 4:
+            return []
+
+        arr = np.frombuffer(data, dtype='<u4', count=total_pixels).reshape((h, w))
+        if return_raw:
+            return [arr]
+
+        scaled = np.clip(
+            arr.astype(np.float64) * (255.0 / 4294967295.0),
+            0, 255
+        ).astype(np.uint8)
+        return [scaled]
+
     if bitdepth == 16:
         total_pixels = w * h
         if len(data) < total_pixels * 2:
@@ -967,7 +986,7 @@ def unpack_by_bitdepth(data, w, h, bitdepth, return_raw=False):
     
 
 class LazyFrames:
-    def __init__(self, file_path, w, h, bitdepth):
+    def __init__(self, file_path, w, h, bitdepth, use_memmap=False):
         self.file_path = file_path
         self.w = w
         self.h = h
@@ -981,16 +1000,21 @@ class LazyFrames:
             self.bytes_per_frame = (total_pixels * 12) // 8
         elif bitdepth == 16:
             self.bytes_per_frame = total_pixels * 2
+        elif bitdepth == 32:
+            self.bytes_per_frame = total_pixels * 4
         else:
             raise ValueError(f"Unsupported bit depth: {bitdepth}")
-        # Use numpy memmap for lazy access
-        try:
-            self.mem = np.memmap(file_path, dtype=np.uint8, mode='r')
-            file_size = self.mem.size
-        except Exception:
-            # Fallback to os.path.getsize if memmap fails
+        # Use numpy memmap for lazy access only if explicitly requested
+        self.mem = None
+        if use_memmap:
+            try:
+                self.mem = np.memmap(file_path, dtype=np.uint8, mode='r')
+                file_size = self.mem.size
+            except Exception:
+                # Fallback to os.path.getsize if memmap fails
+                file_size = os.path.getsize(file_path)
+        else:
             file_size = os.path.getsize(file_path)
-            self.mem = None
 
         self.num_frames = file_size // self.bytes_per_frame if self.bytes_per_frame > 0 else 0
 
@@ -1010,6 +1034,8 @@ class LazyFrames:
             with open(self.file_path, 'rb') as f:
                 f.seek(start)
                 chunk = f.read(self.bytes_per_frame)
+            if len(chunk) < self.bytes_per_frame:
+                chunk += bytes(self.bytes_per_frame - len(chunk))
 
         frames = unpack_by_bitdepth(chunk, self.w, self.h, self.bitdepth, return_raw=False)
         if frames is None:
@@ -1036,6 +1062,8 @@ class LazyFrames:
             with open(self.file_path, 'rb') as f:
                 f.seek(start)
                 chunk = f.read(self.bytes_per_frame)
+            if len(chunk) < self.bytes_per_frame:
+                chunk += bytes(self.bytes_per_frame - len(chunk))
 
         frames = unpack_by_bitdepth(chunk, self.w, self.h, self.bitdepth, return_raw=True)
         if frames is None:

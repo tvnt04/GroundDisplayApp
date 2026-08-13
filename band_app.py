@@ -25,6 +25,11 @@ try:
 except Exception:
     sip = None
 try:
+    from toast import show_success, show_info
+except Exception:
+    def show_success(*args, **kwargs): pass
+    def show_info(*args, **kwargs): pass
+try:
     from help_tab import create_help_tab
 except ImportError:
     pass
@@ -194,35 +199,67 @@ class LoadWorker(QThread):
             # Load band frames with granular progress per band and sub-checks
             band_frames = {}
             files_checked = []
-            num_bands = 7
-            for i in range(num_bands):
+            
+            # Dynamically discover all band files and group by band identifier
+            # This supports unprocessed bandx files and any band naming convention
+            band_files = {}  # {band_id: {variant: path, ...}}
+            
+            for f in files:
+                if '.band' not in f:
+                    continue
+                parts = f.split('.band')
+                if len(parts) != 2 or not parts[1]:
+                    continue
+                suffix = parts[1]
+                fpath = os.path.join(self.folder, f)
+                if not (os.path.exists(fpath) and os.path.getsize(fpath) > 0):
+                    continue
+                
+                # Parse band suffix: detect raw, binned, and split variants
+                # Only treat 01 or 0/1 as split for NUMERIC band IDs (e.g., band00/band01)
+                # For alphanumeric IDs (e.g., bandx0, bandx1), treat as separate raw bands
+                
+                if suffix.endswith('2') and len(suffix) > 1:
+                    # Binned variant: suffix = "02", "12", "x2", etc.
+                    band_id = suffix[:-1]  # Remove trailing '2'
+                    if band_id not in band_files:
+                        band_files[band_id] = {}
+                    band_files[band_id]['binned'] = fpath
+                elif suffix.endswith(('0', '1')) and len(suffix) > 1 and suffix[-2].isdigit():
+                    # Split variant: ONLY if previous char is a digit
+                    # Examples: "00", "01", "10", "11" (but NOT "x0", "x1")
+                    band_id = suffix[:-1]  # Remove trailing '0' or '1'
+                    split_side = 'left' if suffix[-1] == '0' else 'right'
+                    if band_id not in band_files:
+                        band_files[band_id] = {}
+                    band_files[band_id][split_side] = fpath
+                else:
+                    # Raw/unprocessed variant: bandx, bandy, band0, band1, bandx0, bandx2, etc.
+                    band_id = suffix
+                    if band_id not in band_files:
+                        band_files[band_id] = {}
+                    band_files[band_id]['raw'] = fpath
+            
+            if not band_files:
+                raise ValueError(f"No valid band files found in folder.")
+            
+            # Load bands with priority: raw > binned > split
+            sorted_ids = sorted(band_files.keys(), key=lambda x: (len(x), x))
+            for band_idx, band_id in enumerate(sorted_ids):
                 if interrupted():
                     self.error.emit("Loading cancelled")
                     return
-                band_key = f"b{i}"
-                base_progress = int((30 + (i * 6)) * 0.8) # 24 to 52.8
-                self.progress.emit(base_progress) # Band start
-                # Check full fname
-                fname_full = os.path.join(self.folder, f"{base_name}.band{i}")
-                files_checked.append(fname_full)
-                self.progress.emit(int((base_progress + 0.5) * 0.8)) # slight
-                if os.path.exists(fname_full) and os.path.getsize(fname_full) > 0:
-                    self.progress.emit(int((base_progress + 1) * 0.8))
-                    # Granular for LazyFrames init (simulate sub-steps if slow)
-                    for sub_step in range(5): # e.g., open, read header, validate, unpack, init
-                        if interrupted():
-                            self.error.emit("Loading cancelled")
-                            return
-                        time.sleep(0.005) # Simulate; remove if not needed
-                        self.progress.emit(int((base_progress + 1 + (sub_step * 0.8)) * 0.8))
-                    band_frames[band_key] = LazyFrames(fname_full, self.width, self.height, self.bitdepth)
-                    self.progress.emit(int((base_progress + 5.5) * 0.8))
-                    continue
-                # Check binned
-                self.progress.emit(int((base_progress + 0.5) * 0.8))
-                fname_binned = os.path.join(self.folder, f"{base_name}.band{i}2")
-                files_checked.append(fname_binned)
-                if os.path.exists(fname_binned) and os.path.getsize(fname_binned) > 0:
+                
+                band_key = f"b{band_id}"
+                base_progress = int((30 + (band_idx * 4)) * 0.8)
+                self.progress.emit(base_progress)
+                
+                variants = band_files[band_id]
+                
+                # Load raw (highest priority)
+                if 'raw' in variants:
+                    fpath = variants['raw']
+                    files_checked.append(fpath)
                     self.progress.emit(int((base_progress + 1) * 0.8))
                     for sub_step in range(5):
                         if interrupted():
@@ -230,34 +267,47 @@ class LoadWorker(QThread):
                             return
                         time.sleep(0.005)
                         self.progress.emit(int((base_progress + 1 + (sub_step * 0.8)) * 0.8))
-                    band_frames[f"{band_key}_binned"] = LazyFrames(fname_binned, self.width // 2, self.height // 2, self.bitdepth)
-                    self.progress.emit(int((base_progress + 5.5) * 0.8))
-                    continue
-                # Check left/right (split)
-                self.progress.emit(int((base_progress + 0.5) * 0.8))
-                lfile = os.path.join(self.folder, f"{base_name}.band{i}0")
-                files_checked.append(lfile)
-                if os.path.exists(lfile) and os.path.getsize(lfile) > 0:
+                    band_frames[band_key] = LazyFrames(fpath, self.width, self.height, self.bitdepth)
+                    self.progress.emit(int((base_progress + 5) * 0.8))
+                elif 'binned' in variants:
+                    fpath = variants['binned']
+                    files_checked.append(fpath)
                     self.progress.emit(int((base_progress + 1) * 0.8))
-                    for sub_step in range(3):
+                    for sub_step in range(5):
                         if interrupted():
                             self.error.emit("Loading cancelled")
                             return
                         time.sleep(0.005)
-                        self.progress.emit(int((base_progress + 1 + (sub_step * 1.2)) * 0.8))
-                    band_frames[f"{band_key}_left"] = LazyFrames(lfile, self.width // 2, self.height, self.bitdepth)
-                self.progress.emit(int((base_progress + 2.5) * 0.8))
-                rfile = os.path.join(self.folder, f"{base_name}.band{i}1")
-                files_checked.append(rfile)
-                if os.path.exists(rfile) and os.path.getsize(rfile) > 0:
-                    for sub_step in range(3):
-                        if interrupted():
-                            self.error.emit("Loading cancelled")
-                            return
-                        time.sleep(0.005)
-                        self.progress.emit(int((base_progress + 2.5 + (sub_step * 1.2)) * 0.8))
-                    band_frames[f"{band_key}_right"] = LazyFrames(rfile, self.width // 2, self.height, self.bitdepth)
-                self.progress.emit(int((base_progress + 5.5) * 0.8)) # Band complete
+                        self.progress.emit(int((base_progress + 1 + (sub_step * 0.8)) * 0.8))
+                    band_frames[f"{band_key}_binned"] = LazyFrames(fpath, self.width // 2, self.height // 2, self.bitdepth)
+                    self.progress.emit(int((base_progress + 5) * 0.8))
+                else:
+                    # Load split variants if available
+                    if 'left' in variants:
+                        lpath = variants['left']
+                        files_checked.append(lpath)
+                        self.progress.emit(int((base_progress + 1) * 0.8))
+                        for sub_step in range(3):
+                            if interrupted():
+                                self.error.emit("Loading cancelled")
+                                return
+                            time.sleep(0.005)
+                            self.progress.emit(int((base_progress + 1 + (sub_step * 1.2)) * 0.8))
+                        band_frames[f"{band_key}_left"] = LazyFrames(lpath, self.width // 2, self.height, self.bitdepth)
+                    
+                    if 'right' in variants:
+                        rpath = variants['right']
+                        files_checked.append(rpath)
+                        self.progress.emit(int((base_progress + 3) * 0.8))
+                        for sub_step in range(3):
+                            if interrupted():
+                                self.error.emit("Loading cancelled")
+                                return
+                            time.sleep(0.005)
+                            self.progress.emit(int((base_progress + 3 + (sub_step * 1.2)) * 0.8))
+                        band_frames[f"{band_key}_right"] = LazyFrames(rpath, self.width // 2, self.height, self.bitdepth)
+                    
+                    self.progress.emit(int((base_progress + 5) * 0.8))
             self.progress.emit(int(72 * 0.8)) # 57.6 ~58
             if not band_frames:
                 raise ValueError(f"No valid band frames loaded. Checked files: {', '.join(files_checked)}")
@@ -442,8 +492,8 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         self.raw_height = 384
         self.tdi_stage = 0
         self.bitdepth_var = QComboBox()
-        # Support 8, 10, 12 and 16-bit sources
-        self.bitdepth_var.addItems(["8", "10", "12", "16"])
+        # Support 8, 10, 12, 16 and 32-bit sources
+        self.bitdepth_var.addItems(["8", "10", "12", "16", "32"])
         self.bitdepth_var.setCurrentIndex(1)
        
         self.gap_var = QSpinBox()
@@ -522,7 +572,7 @@ class BandStitchProApp(BandViewsMixin, QWidget):
        
         # Keyboard shortcuts
         QShortcut(QKeySequence("Shift+N"), self, self.main_app.add_new_tab)
-        QShortcut(QKeySequence("Shift+Q"), self, lambda: self.main_app.close_tab(self.main_app.tab_widget.indexOf(self)))
+        QShortcut(QKeySequence("Shift+Q"), self, lambda: self.main_app.close_widget_tab(self))
         QShortcut(QKeySequence("Shift+Return"), self, self.select_folder)
         QShortcut(QKeySequence("Ctrl+S"), self, self.save_parameters)
         QShortcut(QKeySequence("Tab"), self, self.cycle_view_tabs_forward)
@@ -566,9 +616,8 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         except Exception:
             pass
         try:
-            if worker.isRunning() and not worker.wait(wait_ms):
-                worker.terminate()
-                worker.wait(1000)
+            if worker.isRunning():
+                worker.wait(wait_ms)
         except Exception:
             pass
     def _perform_unload_on_main(self, key):
@@ -781,6 +830,7 @@ class BandStitchProApp(BandViewsMixin, QWidget):
             'flip_flags': self.flip_flags,
             'bands_info': getattr(self, 'bands_info', {}),
             'band_enabled': band_enabled_states,
+            'view_tabs': {name: bool(cb.isChecked()) for name, cb in getattr(self, 'view_checkboxes', {}).items()},
             # Add more states as needed (e.g., viewer_states if persistent)
         }
     def load_state(self, data):
@@ -889,6 +939,23 @@ class BandStitchProApp(BandViewsMixin, QWidget):
                 cb.stateChanged.connect(lambda state, k=key: self.toggle_band(k, state))
                 if hasattr(self, 'band_checkbox_layout'):
                     self.band_checkbox_layout.addWidget(cb)
+        # Restore view visibility from saved state, or default key views if none were saved.
+        saved_views = data.get('view_tabs')
+        if hasattr(self, 'view_checkboxes'):
+            if isinstance(saved_views, dict):
+                for name, cb in self.view_checkboxes.items():
+                    try:
+                        cb.setChecked(bool(saved_views.get(name, False)))
+                    except Exception:
+                        pass
+            else:
+                for default_view in ["All Bands", "Individual Bands"]:
+                    cb = self.view_checkboxes.get(default_view)
+                    if cb is not None and not cb.isChecked():
+                        try:
+                            cb.setChecked(True)
+                        except Exception:
+                            pass
         # Safe refresh: update frame controls first, then views (which will populate individual tabs based on enabled)
         try:
             self.update_frame_controls()
@@ -1053,6 +1120,7 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         main_layout = QHBoxLayout()
         main_layout.setContentsMargins(5, 5, 5, 5)
         self.setLayout(main_layout)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
        
         self.left_scroll = QScrollArea()
         self.left_scroll.setWidgetResizable(True)
@@ -1162,6 +1230,13 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         self.play_btn.setToolTip("Play or pause frames")
         self.play_btn.clicked.connect(self.toggle_play)
         playback_layout.addWidget(self.play_btn)
+        
+        self.speed_combo = QComboBox()
+        self.speed_combo.addItems(["0.25x", "0.5x", "1.0x", "2.0x", "4.0x", "10.0x"])
+        self.speed_combo.setCurrentText("1.0x")
+        self.speed_combo.setToolTip("Playback Speed")
+        self.speed_combo.currentTextChanged.connect(self.change_speed)
+        playback_layout.addWidget(self.speed_combo)
        
         prev_btn = QPushButton("◀")
         prev_btn.setToolTip("Previous frame")
@@ -1184,20 +1259,7 @@ class BandStitchProApp(BandViewsMixin, QWidget):
                
         frame_layout.addLayout(playback_layout)
        
-        frame_row_layout = QHBoxLayout()
-        frame_row_layout.setContentsMargins(0, 0, 0, 0)
-        frame_row_layout.setSpacing(10)
-        frame_mode_layout = QHBoxLayout()
-        frame_mode_layout.addWidget(self.frame_mode_single)
-        frame_mode_layout.addWidget(self.frame_mode_range)
-        frame_layout.addLayout(frame_mode_layout)
-       
-        frame_range_layout = QHBoxLayout()
-        frame_range_layout.addWidget(QLabel("Start:"))
-        frame_range_layout.addWidget(self.start_frame_entry)
-        frame_range_layout.addWidget(QLabel("End:"))
-        frame_range_layout.addWidget(self.end_frame_entry)
-        frame_layout.addLayout(frame_range_layout)
+
        
         # ---- Collapsible "Band Offsets" section (triangle dropdown) ----
         offset_container = QWidget()
@@ -1331,13 +1393,18 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         left_layout.addStretch()
        
         self.display_frame = QWidget()
+        self.display_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         display_layout = QVBoxLayout()
+        display_layout.setContentsMargins(0, 0, 0, 0)
         self.display_frame.setLayout(display_layout)
         main_layout.addWidget(self.display_frame)
+        main_layout.setStretch(0, 0)
+        main_layout.setStretch(1, 1)
        
         self.view_tabs = QTabWidget()
         self.view_tabs.setTabBar(CustomTabBar()) # Use custom tab bar (disables default closable)
         self.view_tabs.setMovable(True)
+        self.view_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         self.display_splitter = QSplitter(Qt.Vertical)
         self.display_splitter.setChildrenCollapsible(False)
@@ -1366,6 +1433,7 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         self.display_splitter.handle(1).setEnabled(False)
        
         progress_container = QWidget()
+        self.progress_container = progress_container
         progress_layout = QHBoxLayout()
         progress_layout.setContentsMargins(0, 0, 0, 0)
         progress_layout.setSpacing(8)
@@ -1433,6 +1501,55 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         self.frame_slider.valueChanged.connect(self.on_frame_slider_changed)
         self.frame_mode_var.buttonClicked.connect(self.update_views)
         self.rgb_frame_mode_var.buttonClicked.connect(self.preview_rgb_fusion)
+
+    def apply_primary_monitor_control_width(self, width=None):
+        try:
+            if width is None:
+                for widget in (getattr(self, "terminal_panel", None), getattr(self, "progress_container", None)):
+                    if widget is not None:
+                        widget.setMinimumWidth(0)
+                        widget.setMaximumWidth(16777215)
+                viewers = []
+                for name in ("all_bands_viewer", "rgb_preview_viewer"):
+                    viewer = getattr(self, name, None)
+                    if viewer is not None:
+                        viewers.append(viewer)
+                try:
+                    viewers.extend(self.findChildren(GraphicsImageViewer))
+                except Exception:
+                    pass
+                seen = set()
+                for viewer in viewers:
+                    if viewer is None or id(viewer) in seen:
+                        continue
+                    seen.add(id(viewer))
+                    if hasattr(viewer, "set_primary_monitor_control_width"):
+                        viewer.set_primary_monitor_control_width(None)
+                return
+
+            safe_width = max(320, int(width) - 24)
+            for widget in (getattr(self, "terminal_panel", None), getattr(self, "progress_container", None)):
+                if widget is not None:
+                    widget.setMinimumWidth(0)
+                    widget.setMaximumWidth(safe_width)
+            viewers = []
+            for name in ("all_bands_viewer", "rgb_preview_viewer"):
+                viewer = getattr(self, name, None)
+                if viewer is not None:
+                    viewers.append(viewer)
+            try:
+                viewers.extend(self.findChildren(GraphicsImageViewer))
+            except Exception:
+                pass
+            seen = set()
+            for viewer in viewers:
+                if viewer is None or id(viewer) in seen:
+                    continue
+                seen.add(id(viewer))
+                if hasattr(viewer, "set_primary_monitor_control_width"):
+                    viewer.set_primary_monitor_control_width(safe_width)
+        except Exception:
+            pass
    
     def init_view_tabs(self):
         # All Bands tab
@@ -1450,16 +1567,60 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         # Individual Bands tab
         self.individual_bands_tab = QWidget()
         individual_bands_layout = QVBoxLayout()
+        individual_bands_layout.setContentsMargins(4, 4, 4, 4)
+        individual_bands_layout.setSpacing(4)
         self.individual_bands_tab.setLayout(individual_bands_layout)
+
+        # Control toolbar for Individual Bands (Frame Mode & Range)
+        indiv_ctrl_widget = QWidget()
+        indiv_ctrl_widget.setStyleSheet("""
+            QWidget#indivCtrlWidget {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 6px;
+            }
+        """)
+        indiv_ctrl_widget.setObjectName("indivCtrlWidget")
+        indiv_ctrl_layout = QHBoxLayout(indiv_ctrl_widget)
+        indiv_ctrl_layout.setContentsMargins(10, 5, 10, 5)
+        indiv_ctrl_layout.setSpacing(14)
+
+        # Frame Mode Radio buttons
+        indiv_ctrl_layout.addWidget(self.frame_mode_single)
+        indiv_ctrl_layout.addWidget(self.frame_mode_range)
+
+        # Range Start / End inputs
+        indiv_ctrl_layout.addSpacing(8)
+        lbl_start = QLabel("Start:")
+        indiv_ctrl_layout.addWidget(lbl_start)
+        indiv_ctrl_layout.addWidget(self.start_frame_entry)
+        lbl_end = QLabel("End:")
+        indiv_ctrl_layout.addWidget(lbl_end)
+        indiv_ctrl_layout.addWidget(self.end_frame_entry)
+
+        # Connect mode toggle to enable/disable start/end spinboxes
+        def _sync_indiv_range_enabled(checked=None):
+            is_range = self.frame_mode_range.isChecked()
+            self.start_frame_entry.setEnabled(is_range)
+            self.end_frame_entry.setEnabled(is_range)
+            lbl_start.setEnabled(is_range)
+            lbl_end.setEnabled(is_range)
+
+        self.frame_mode_range.toggled.connect(_sync_indiv_range_enabled)
+        _sync_indiv_range_enabled()
+
+        indiv_ctrl_layout.addStretch()
+        individual_bands_layout.addWidget(indiv_ctrl_widget)
+
         self.band_checkbox_container = QWidget()
         self.band_checkbox_layout = QGridLayout(self.band_checkbox_container)
-        self.band_checkbox_layout.setContentsMargins(6, 6, 6, 6)
-        self.band_checkbox_layout.setHorizontalSpacing(2)
+        self.band_checkbox_layout.setContentsMargins(6, 4, 6, 4)
+        self.band_checkbox_layout.setHorizontalSpacing(4)
         self.band_checkbox_layout.setVerticalSpacing(2)
         individual_bands_layout.addWidget(self.band_checkbox_container)
         self.individual_bands_notebook = QTabWidget()
         # Consistently use setup_tab_connections for connecting up the notebook logic
-        individual_bands_layout.addWidget(self.individual_bands_notebook)
+        individual_bands_layout.addWidget(self.individual_bands_notebook, 1)
         #self.view_tabs.addTab(self.individual_bands_tab, "Individual Bands")
         self._set_custom_close_button(self.view_tabs.count() - 1)
         # Histogram tab
@@ -1813,9 +1974,7 @@ class BandStitchProApp(BandViewsMixin, QWidget):
                             try:
                                 self._rgb_worker.requestInterruption()
                                 self._rgb_worker.quit()
-                                if not self._rgb_worker.wait(1000):
-                                    self._rgb_worker.terminate()
-                                    self._rgb_worker.wait(1000)
+                                self._rgb_worker.wait(2000)
                             except Exception:
                                 pass
                     # Always run mode-specific unload logic first to release buffers.
@@ -2329,12 +2488,8 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         if not key:
             print(f"[DEBUG] No key found, skipping unload")
             return
-        if hasattr(sub_widget, 'worker') and sub_widget.worker and sub_widget.worker.isRunning():
-            sub_widget.worker.requestInterruption()
-            sub_widget.worker.wait(2000)
-            if sub_widget.worker.isRunning():
-                sub_widget.worker.terminate()
-                sub_widget.worker.wait(1000)
+        if hasattr(sub_widget, 'worker'):
+            self._stop_thread(sub_widget.worker, 3000)
             print(f"[DEBUG] Worker interrupted for {key}")
         if hasattr(sub_widget, 'loading_timer') and sub_widget.loading_timer:
             sub_widget.loading_timer.stop()
@@ -2395,12 +2550,8 @@ class BandStitchProApp(BandViewsMixin, QWidget):
                     item.widget().deleteLater()
             print(f"[DEBUG] Cleared existing layout for {key}")
         # Perform unload (existing code)
-        if hasattr(widget, 'worker') and widget.worker and widget.worker.isRunning():
-            widget.worker.requestInterruption()
-            widget.worker.quit() # NEW: Polite quit
-            if not widget.worker.wait(2000): # Wait up to 2s
-                widget.worker.terminate() # Force if needed
-                widget.worker.wait(1000) # Brief wait after terminate
+        if hasattr(widget, 'worker'):
+            self._stop_thread(widget.worker, 3000)
             print(f"[DEBUG] Worker interrupted/quit for {key}")
         if hasattr(widget, 'loading_timer') and widget.loading_timer:
             widget.loading_timer.stop()
@@ -2553,6 +2704,9 @@ class BandStitchProApp(BandViewsMixin, QWidget):
             print(f"_apply_cached_image error for key={key}: {e}")
             return
     def save_parameters(self):
+        if not getattr(self, 'current_folder', None):
+            QMessageBox.critical(self, "Error", "No folder selected. Please select a folder first.")
+            return
         params = {
             "width": self.width_entry.text(),
             "height": self.height_entry.text(),
@@ -2576,7 +2730,7 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         try:
             from utils import save_params_for_path
             save_params_for_path(self.current_folder, params, as_default=True)
-            QMessageBox.information(self, "Success", "Parameters saved successfully")
+            show_success(self, "Success", "Parameters saved successfully.", duration=3000)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save parameters: {e}")
    
@@ -2652,7 +2806,6 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         self.update_views()
         if self.fit_mode_var.checkedId() == 0:
             self.fit_to_screen()
-        print("refresh")
     def _safe_restore_individual_index(self, idx):
         try:
             if hasattr(self, 'individual_bands_notebook') and self.individual_bands_notebook is not None:
@@ -2682,7 +2835,7 @@ class BandStitchProApp(BandViewsMixin, QWidget):
     def reload_folder_data(self):
         try:
             # call the existing loader (which validates width/height/bitdepth)
-            self.load_folder_data()
+            self.load_folder_data(is_reload=True)
             # update UI after load
             self.update_views()
             if self.fit_mode_var.checkedId() == 0:
@@ -2691,6 +2844,9 @@ class BandStitchProApp(BandViewsMixin, QWidget):
             QMessageBox.critical(self, "Reload Error", f"Failed to reload folder: {e}")
             print("reload_folder_data error:", e)
     def show_params_popup(self):
+        if not getattr(self, 'current_folder', None):
+            QMessageBox.critical(self, "Error", "No folder selected. Please select a folder first.")
+            return
         try:
             dialog = self._build_parameter_dialog(self.current_folder)
             if dialog.exec_() == QDialog.Accepted:
@@ -2719,10 +2875,10 @@ class BandStitchProApp(BandViewsMixin, QWidget):
                         pass
             else:
                 return
-            self.load_folder_data()
+            self.load_folder_data(is_reload=True)
         except Exception as e:
             print("show_params_popup error:", e)
-            QMessageBox.information(self, "Parameters", "Could not read parameters.")
+            QMessageBox.critical(self, "Parameter Error", f"Could not read or apply parameters: {e}")
    
     def _set_custom_close_button(self, index):
         close_btn = QToolButton()
@@ -2904,8 +3060,12 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         self.histogram_viewer.max_val = max_val
         # self.refresh()
        
-    def load_folder_data(self):
+    def load_folder_data(self, is_reload=False):
+        self._is_reloading = is_reload
         if getattr(self, '_is_closing', False):
+            return
+        if not getattr(self, 'current_folder', None):
+            QMessageBox.critical(self, "Error", "No folder selected. Please select a folder first.")
             return
         try:
             width = int(self.width_entry.text())
@@ -2962,35 +3122,15 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         except Exception:
             pass
     def _set_status(self, text):
-        if hasattr(self, 'worker') and self.worker.isRunning():
-            try:
-                self.worker.requestInterruption()
-                self.worker.wait(1000)
-                if self.worker.isRunning():
-                    self.worker.terminate()
-                    self.worker.wait(2000)
-            except Exception:
-                pass
+        if hasattr(self, 'worker'):
+            self._stop_thread(self.worker, 2000)
         try:
             self._finish_progress_session()
         except Exception:
             pass
     def _cancel_loading(self):
-        if hasattr(self, 'worker') and self.worker.isRunning():
-            try:
-                # ask the worker to stop cooperatively
-                self.worker.requestInterruption()
-                # wait a short time for it to stop
-                self.worker.wait(1000) # wait 1 second
-                if self.worker.isRunning():
-                    # last resort
-                    self.worker.terminate()
-                    self.worker.wait(2000)
-            except Exception:
-                try:
-                    self.worker.terminate()
-                except Exception:
-                    pass
+        if hasattr(self, 'worker'):
+            self._stop_thread(self.worker, 1000)
         if hasattr(self, 'loading_dialog'):
             self.loading_dialog.close()
         try:
@@ -3013,13 +3153,8 @@ class BandStitchProApp(BandViewsMixin, QWidget):
 
         # Stop RGB fusion worker cleanly to avoid QThread being destroyed
         try:
-            if hasattr(self, '_rgb_worker') and self._rgb_worker:
-                if self._rgb_worker.isRunning():
-                    self._rgb_worker.requestInterruption()
-                    self._rgb_worker.quit()
-                    if not self._rgb_worker.wait(2000):
-                        self._rgb_worker.terminate()
-                        self._rgb_worker.wait(1000)
+            if hasattr(self, '_rgb_worker'):
+                self._stop_thread(self._rgb_worker, 3000)
         except Exception as e:
             print(f"[DEBUG] Error stopping RGB worker: {e}")
         
@@ -3028,54 +3163,22 @@ class BandStitchProApp(BandViewsMixin, QWidget):
             if hasattr(self, 'individual_bands_notebook'):
                 for i in range(self.individual_bands_notebook.count()):
                     w = self.individual_bands_notebook.widget(i)
-                    if hasattr(w, 'worker') and w.worker:
-                        try:
-                            if w.worker.isRunning():
-                                w.worker.requestInterruption()
-                                w.worker.quit()
-                                if not w.worker.wait(2000):
-                                    w.worker.terminate()
-                                    w.worker.wait(1000)
-                        except Exception:
-                            pass
+                    if hasattr(w, 'worker'):
+                        self._stop_thread(w.worker, 3000)
         except Exception as e:
             print(f"[DEBUG] Error stopping individual band workers: {e}")
         
-        try:
-            if hasattr(self, 'individual_bands_notebook'):
-                for i in range(self.individual_bands_notebook.count()):
-                    w = self.individual_bands_notebook.widget(i)
-                    if hasattr(w, 'worker') and w.worker and w.worker.isRunning():
-                        w.worker.requestInterruption()
-                        w.worker.quit()
-                        w.worker.wait(2000)  # Wait longer for clean exit
-                        if w.worker.isRunning():
-                            w.worker.terminate()
-                            w.worker.wait(1000)
-        except Exception as e:
-            print(f"Error stopping individual workers: {e}")
-        
         # NEW: Stop view_worker if running
         try:
-            if hasattr(self, 'view_worker') and self.view_worker and self.view_worker.isRunning():
-                self.view_worker.requestInterruption()
-                self.view_worker.quit()
-                self.view_worker.wait(2000)
-                if self.view_worker.isRunning():
-                    self.view_worker.terminate()
-                    self.view_worker.wait(1000)
+            if hasattr(self, 'view_worker'):
+                self._stop_thread(self.view_worker, 3000)
         except Exception as e:
             print(f"Error stopping view_worker: {e}")
         
         # NEW: Stop main load worker
         try:
-            if hasattr(self, 'worker') and self.worker and self.worker.isRunning():
-                self.worker.requestInterruption()
-                self.worker.quit()
-                self.worker.wait(2000)
-                if self.worker.isRunning():
-                    self.worker.terminate()
-                    self.worker.wait(1000)
+            if hasattr(self, 'worker'):
+                self._stop_thread(self.worker, 3000)
         except Exception as e:
             print(f"Error stopping main worker: {e}")
         
@@ -3108,11 +3211,6 @@ class BandStitchProApp(BandViewsMixin, QWidget):
             self.main_app.update_tab_name(self, os.path.basename(self.current_folder))
         # Set number of bands
         self.num_bands = len(self.bands_info) if self.bands_info else 1
-        # Debug prints
-        print("DEBUG: geo_info (center_lat, center_lon, band_w, band_h, pixel_m) =", self.geo_info)
-        print("DEBUG: self.band_frames keys (count) =", len(self.band_frames))
-        print("DEBUG: bands_info keys:", self.bands_info)
-        print("DEBUG: width_entry, height_entry:", self.width_entry.text(), self.height_entry.text())
         try:
             # Clear old checkboxes
             while self.band_checkbox_layout.count():
@@ -3221,7 +3319,11 @@ class BandStitchProApp(BandViewsMixin, QWidget):
    
         # Reset progress bar to 0 only after everything is done
         self._finish_progress_session()
-        print("DEBUG: View update complete—no hangs!")
+        if getattr(self, '_is_reloading', False):
+            show_success(self, "Parameters Updated", "Dataset has been reloaded with new parameters.", duration=3500)
+            self._is_reloading = False
+        else:
+            show_success(self, "Dataset Loaded", "Dataset has been successfully loaded and processed.", duration=3500)
     def update_progress(self, value):
         """Unified progress update with monotonic values for a single visible load session."""
         try:
@@ -3696,7 +3798,7 @@ class BandStitchProApp(BandViewsMixin, QWidget):
                     image = pil_image
                 # Save with format based on extension
                 image.save(filename)
-                QMessageBox.information(self, "Success", f"Image exported to {filename}")
+                show_success(self, "Success", f"Image exported to {filename}", duration=3500)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to export image: {e}")
     def update_frame_controls(self):
@@ -3729,9 +3831,9 @@ class BandStitchProApp(BandViewsMixin, QWidget):
    
     def on_frame_slider_changed(self, value):
         self.current_frame_index = value
-        self.update_views()
+        self.update_views(full_refresh=not getattr(self, 'playback_mode', False))
         self.frame_label.setText(f"{self.current_frame_index+1}/{self.frame_slider.maximum()+1}")
-        if self.fit_mode_var.checkedId() == 0:
+        if self.fit_mode_var.checkedId() == 0 and not getattr(self, 'playback_mode', False):
             self.fit_to_screen()
         try:
             main_app = getattr(self, 'main_app', None)
@@ -3754,7 +3856,10 @@ class BandStitchProApp(BandViewsMixin, QWidget):
                 new_index = max_frames - 1
            
             self.current_frame_index = new_index
+            self.frame_slider.blockSignals(True)
             self.frame_slider.setValue(new_index)
+            self.frame_label.setText(f"{self.current_frame_index+1}/{max_frames}")
+            self.frame_slider.blockSignals(False)
            
             # Call optimized update during playback
             self.update_views(full_refresh=not self.playback_mode)
@@ -3765,7 +3870,8 @@ class BandStitchProApp(BandViewsMixin, QWidget):
         if not self.band_frames:
             return
        
-        self.playing = not self.playing
+        self.playing = not getattr(self, 'playing', False)
+        self.playback_mode = self.playing
         if self.playing:
             self.play_btn.setText("⏸ Pause")
             # Start periodic playback
@@ -3781,6 +3887,15 @@ class BandStitchProApp(BandViewsMixin, QWidget):
             except Exception:
                 pass
    
+    def change_speed(self, text):
+        try:
+            rate = float(text[:-1])
+            self.play_delay = int(100 / rate)
+            if getattr(self, 'playing', False) and getattr(self, 'play_timer', None) and self.play_timer.isActive():
+                self.play_timer.setInterval(self.play_delay)
+        except Exception as e:
+            print(f"Speed change error: {e}")
+   
     def play_next_frame(self):
         if not self.playing or not self.band_frames:
             self.play_btn.setText("▶ Play")
@@ -3792,8 +3907,10 @@ class BandStitchProApp(BandViewsMixin, QWidget):
             self.change_frame(1)
         else:
             self.current_frame_index = 0
+            self.frame_slider.blockSignals(True)
             self.frame_slider.setValue(0)
-            self.update_views()
+            self.frame_slider.blockSignals(False)
+            self.update_views(full_refresh=not getattr(self, 'playback_mode', False))
     def validate_frame_range(self):
         if not self.band_frames:
             return

@@ -1,16 +1,15 @@
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QDialog, QStyle,QShortcut,
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QMainWindow, QSizePolicy,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QDialog, QStyle, QShortcut,
+    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QSizePolicy,
     QTabWidget, QLabel, QPushButton, QSpinBox, QComboBox, QCheckBox, QToolButton,
-    QRadioButton, QGroupBox, QScrollArea, QTextEdit, QSlider, QLineEdit, QApplication,
+    QRadioButton, QGroupBox, QScrollArea, QTextEdit, QSlider, QLineEdit,
     QFileDialog, QMessageBox, QDoubleSpinBox, QFormLayout, QTabBar, QButtonGroup, QTreeWidget, QTreeWidgetItem,
     QGraphicsDropShadowEffect, QGraphicsItemGroup, QMenu, QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsRectItem, QGraphicsTextItem
 )
-from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QProcess, pyqtSignal,QPropertyAnimation,QEvent, QEvent, QBuffer, QByteArray, QSize
+from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QProcess, pyqtSignal, QPropertyAnimation, QEvent, QBuffer, QByteArray, QSize
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPainterPath,QPen,QCursor,QColor,QTextCursor,QKeySequence,QTransform, QPalette, QIcon, QFont
 import math
-import sys
 import platform
 from PIL import Image
 import numpy as np
@@ -1497,7 +1496,10 @@ class GraphicsImageViewer(QWidget):
         layout.addWidget(self.graphics_view)
         self.mouse_zoom_enabled = False # toggled by Mouse Zoom checkbox
        
-        bottom_bar = QHBoxLayout()
+        self.bottom_bar_widget = QWidget(self)
+        self.bottom_bar_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        bottom_bar = QHBoxLayout(self.bottom_bar_widget)
+        bottom_bar.setContentsMargins(0, 0, 0, 0)
         self._bottom_layout = bottom_bar
         bottom_bar.addStretch()
 
@@ -1714,7 +1716,7 @@ class GraphicsImageViewer(QWidget):
                 self._apply_local_rotation()
         self.rotation_mode_btn.clicked.connect(cycle_rotation_mode)
         bottom_bar.addStretch()
-        layout.addLayout(bottom_bar)
+        layout.addWidget(self.bottom_bar_widget, 0, alignment=Qt.AlignHCenter)
         self._overlay_btn_margin = 12
         self.grid_btn = QPushButton("#", self.graphics_view.viewport())
         self.grid_btn.setFixedSize(22, 22)
@@ -1898,6 +1900,22 @@ class GraphicsImageViewer(QWidget):
         self.rotation_overlay.hide()
         self.global_rotation_slider.valueChanged.connect(self.set_global_rotation)
         self.local_rotation_slider.valueChanged.connect(self.set_local_rotation)
+
+    def set_primary_monitor_control_width(self, width=None):
+        try:
+            bar = getattr(self, "bottom_bar_widget", None)
+            if bar is None:
+                return
+            if width is None:
+                bar.setMinimumWidth(0)
+                bar.setMaximumWidth(16777215)
+            else:
+                safe_width = max(320, int(width))
+                bar.setMinimumWidth(0)
+                bar.setMaximumWidth(safe_width)
+        except Exception:
+            pass
+
     def set_global_rotation(self, degrees):
         self.global_rotation = degrees
         self.global_rotation_value_label.setText(f"{degrees}°")
@@ -3252,9 +3270,31 @@ class GraphicsImageViewer(QWidget):
                     self.magnifier_zoom_slider.show()
             except Exception:
                 pass
-            # enter fullscreen on the main window
+            # On an extended desktop, span the window across the full virtual
+            # geometry instead of fullscreening only the current monitor.
             try:
-                main_window.showFullScreen()
+                target_screen = None
+                if main_window.windowHandle() is not None:
+                    target_screen = main_window.windowHandle().screen()
+                if target_screen is None:
+                    target_screen = main_window.screen() if hasattr(main_window, "screen") else None
+
+                virtual_geom = None
+                if target_screen is not None:
+                    siblings = target_screen.virtualSiblings()
+                    if siblings and len(siblings) > 1:
+                        virtual_geom = target_screen.virtualGeometry()
+
+                if virtual_geom is not None and not virtual_geom.isNull():
+                    main_window._saved_window_flags = int(main_window.windowFlags())
+                    main_window._spanned_fullscreen = True
+                    main_window.setWindowFlag(Qt.FramelessWindowHint, True)
+                    main_window.show()
+                    main_window.setGeometry(virtual_geom)
+                    main_window.raise_()
+                else:
+                    main_window._spanned_fullscreen = False
+                    main_window.showFullScreen()
             except Exception as e:
                 print(f"Error entering fullscreen: {e}")
         else:
@@ -3290,7 +3330,16 @@ class GraphicsImageViewer(QWidget):
                 main_window.resize(1920, 1080)
             # exit fullscreen
             try:
-                main_window.showNormal()
+                if bool(getattr(main_window, "_spanned_fullscreen", False)):
+                    saved_flags = getattr(main_window, "_saved_window_flags", None)
+                    if saved_flags is not None:
+                        main_window.setWindowFlags(Qt.WindowFlags(saved_flags))
+                    main_window.showNormal()
+                    if hasattr(main_window, "_saved_window_flags"):
+                        del main_window._saved_window_flags
+                    del main_window._spanned_fullscreen
+                else:
+                    main_window.showNormal()
             except Exception as e:
                 print(f"Error exiting fullscreen: {e}")
        

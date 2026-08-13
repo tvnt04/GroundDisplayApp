@@ -7,7 +7,7 @@ import psutil
 import traceback
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QLabel, QProgressBar,
-    QFileDialog, QMessageBox, QLineEdit, QFormLayout, QDialog, QSpinBox, QCheckBox, QComboBox,
+    QFileDialog, QMessageBox, QLineEdit, QFormLayout, QDialog, QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox,
     QToolButton, QMenu, QApplication, QShortcut, QGroupBox
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
@@ -23,6 +23,41 @@ try:
     from editor_tab import EditorTab
 except ImportError:
     EditorTab = None
+
+class UnloadThread(QThread):
+    progress = pyqtSignal(int)
+    finished = pyqtSignal()
+
+    def __init__(self, raw_viewer, parent=None):
+        super().__init__(parent)
+        self.raw_viewer = raw_viewer
+
+    def run(self):
+        try:
+            self.progress.emit(20)
+            if hasattr(self.raw_viewer, 'raw_data'):
+                self.raw_viewer.raw_data = None
+            if hasattr(self.raw_viewer, 'normalized_data'):
+                self.raw_viewer.normalized_data = None
+            if hasattr(self.raw_viewer, 'lazy_frames'):
+                self.raw_viewer.lazy_frames = None
+
+            self.progress.emit(50)
+            gc.collect()
+            
+            self.progress.emit(80)
+            try:
+                import ctypes
+                libc = ctypes.CDLL("libc.so.6")
+                libc.malloc_trim(0)
+            except Exception:
+                pass
+            
+            self.progress.emit(100)
+        except Exception:
+            pass
+        finally:
+            self.finished.emit()
 
 class StackBuildThread(QThread):
     progress = pyqtSignal(int)
@@ -70,7 +105,7 @@ class StackBuildThread(QThread):
                 # Convert raw to uint8 for display
                 if self.lazy_frames.bitdepth > 8:
                     max_val = (1 << self.lazy_frames.bitdepth) - 1
-                    arr = ((raw.astype(np.float32) / max_val) * 255.0).clip(0, 255).astype(np.uint8)
+                    arr = ((raw.astype(np.float64) / max_val) * 255.0).clip(0, 255).astype(np.uint8)
                 else:
                     arr = raw.astype(np.uint8)
                 pil = Image.fromarray(arr)
@@ -94,95 +129,7 @@ class RawParameterDialog(QDialog):
         self.height_entry = QLineEdit("384")
         layout.addRow("Height:", self.height_entry)
         self.bitdepth_var = QComboBox()
-        self.bitdepth_var.addItems(["8", "10", "12", "16"])
-        self.bitdepth_var.setCurrentIndex(1)  # Default to 10-bit
-        layout.addRow("Bit Depth:", self.bitdepth_var)
-        buttons = QHBoxLayout()
-        ok_btn = QPushButton("OK")
-        ok_btn.setToolTip("Apply parameters")
-        ok_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setToolTip("Close without changes")
-        cancel_btn.clicked.connect(self.reject)
-        buttons.addWidget(ok_btn)
-        buttons.addWidget(cancel_btn)
-        layout.addRow(buttons)
-
-    def get_parameters(self):
-        return {
-            "width": int(self.width_entry.text()),
-            "height": int(self.height_entry.text()),
-            "bitdepth": int(self.bitdepth_var.currentText())
-        }
-
-class UnloadThread(QThread):
-    """Background thread to safely release large raw resources and emit progress."""
-    progress = pyqtSignal(int)
-    finished = pyqtSignal()
-
-    def __init__(self, viewer):
-        super().__init__(viewer)
-        self.viewer = viewer
-
-    def run(self):
-        try:
-            self.progress.emit(0)
-            # Stop any running loading thread first
-            lt = getattr(self.viewer, 'loading_thread', None)
-            if lt and isinstance(lt, QThread) and lt.isRunning():
-                try:
-                    lt.requestInterruption()
-                except Exception:
-                    pass
-                try:
-                    lt.quit()
-                except Exception:
-                    pass
-                try:
-                    lt.wait(2000)
-                except Exception:
-                    pass
-            self.progress.emit(30)
-
-            # Release lazy frames and large arrays
-            try:
-                self.viewer.lazy_frames = None
-            except Exception:
-                pass
-            self.progress.emit(60)
-
-            try:
-                self.viewer.raw_data = None
-                self.viewer.normalized_data = None
-                self.viewer.current_pil_image = None
-                self.viewer.last_params = {}
-                self.viewer.last_file_path = None
-                self.viewer.bitdepth = 8
-            except Exception:
-                pass
-            self.progress.emit(80)
-
-            # Force garbage collection and give UI a moment to breathe
-            gc.collect()
-            self.msleep(100)
-            self.progress.emit(100)
-        except Exception:
-            pass
-        finally:
-            self.finished.emit()
-
-class RawViewer(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Raw Image Parameters")
-        layout = QFormLayout()
-        self.setLayout(layout)
-        self.width_entry = QLineEdit("8448")
-        layout.addRow("Width:", self.width_entry)
-        self.height_entry = QLineEdit("384")
-        layout.addRow("Height:", self.height_entry)
-        self.bitdepth_var = QComboBox()
-        self.bitdepth_var.addItems(["8", "10", "12", "16"])
+        self.bitdepth_var.addItems(["8", "10", "12", "16", "32"])
         self.bitdepth_var.setCurrentIndex(1)  # Default to 10-bit
         layout.addRow("Bit Depth:", self.bitdepth_var)
         buttons = QHBoxLayout()
@@ -228,33 +175,31 @@ class RawLoadingThread(QThread):
                 self.error.emit("File is empty")
                 return
             self.progress.emit(50)
-            frames = unpack_by_bitdepth(data, self.width, self.height, self.bitdepth)
-            if not frames or len(frames) == 0:
+            frames = unpack_by_bitdepth(data, self.width, self.height, self.bitdepth, return_raw=True)
+            if frames is None:
                 self.error.emit(f"Unpack failed for {self.bitdepth}-bit")
                 return
-            display_frame = frames[0]
-            if display_frame.shape != (self.height, self.width):
+            if isinstance(frames, np.ndarray):
+                if frames.size == 0:
+                    self.error.emit(f"Unpack failed for {self.bitdepth}-bit")
+                    return
+                raw_frame = frames if frames.ndim == 2 else frames[0]
+            else:
+                if len(frames) == 0:
+                    self.error.emit(f"Unpack failed for {self.bitdepth}-bit")
+                    return
+                raw_frame = frames[0]
+            if raw_frame is None or raw_frame.size == 0:
+                self.error.emit(f"Unpack failed for {self.bitdepth}-bit")
+                return
+            if raw_frame.shape != (self.height, self.width):
                 self.error.emit("Frame shape mismatch")
                 return
-            # Preserve original raw values
-            if self.bitdepth == 16:
-                raw_frame = np.frombuffer(data, dtype=np.uint16).reshape((self.height, self.width))
-                # Check if it's actually low bit-depth data stored as 16-bit
-                max_val = raw_frame.max()
-                if max_val <= 1023:
-                    # Assume 10-bit
-                    display_frame = np.clip((raw_frame.astype(np.float32) / 1023.0) * 255.0, 0, 255).astype(np.uint8)
-                elif max_val <= 4095:
-                    # Assume 12-bit
-                    display_frame = np.clip((raw_frame.astype(np.float32) / 4095.0) * 255.0, 0, 255).astype(np.uint8)
-                else:
-                    # True 16-bit
-                    display_frame = frames[0]
-            elif self.bitdepth > 8:
-                max_val = (1 << self.bitdepth) - 1
-                raw_frame = ((display_frame.astype(np.float32) / 255.0) * max_val).astype(np.uint16)
-            else:
-                raw_frame = display_frame.copy()
+            max_val = (1 << self.bitdepth) - 1 if self.bitdepth > 8 else 255
+            display_frame = np.clip(
+                raw_frame.astype(np.float64) * (255.0 / float(max_val)),
+                0, 255
+            ).astype(np.uint8)
             self.progress.emit(100)
             self.finished.emit(raw_frame)
             self.normalized.emit(display_frame)
@@ -274,6 +219,11 @@ class RawViewer(QWidget):
         self.contrast_min = 0
         self.contrast_max = 255
         self.current_pil_image = None  # For editor tab compatibility
+
+        self.playing = False
+        self.play_delay = 100
+        self.play_timer = QTimer(self)
+        self.play_timer.timeout.connect(self.play_next_frame)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)  # Minimize margins
@@ -348,6 +298,21 @@ class RawViewer(QWidget):
         self.next_frame_btn.clicked.connect(self.next_frame)
         self.next_frame_btn.setEnabled(False)
         frame_group_layout.addWidget(self.next_frame_btn)
+
+        self.play_btn = QPushButton("▶ Play")
+        self.play_btn.setToolTip("Play or pause frames")
+        self.play_btn.clicked.connect(self.toggle_play)
+        self.play_btn.setEnabled(False)
+        frame_group_layout.addWidget(self.play_btn)
+        
+        self.speed_combo = QComboBox()
+        self.speed_combo.addItems(["0.25x", "0.5x", "1.0x", "2.0x", "4.0x", "10.0x"])
+        self.speed_combo.setCurrentText("1.0x")
+        self.speed_combo.setToolTip("Playback Speed")
+        self.speed_combo.currentTextChanged.connect(self.change_speed)
+        self.speed_combo.setEnabled(False)
+        frame_group_layout.addWidget(self.speed_combo)
+
         frame_group.setLayout(frame_group_layout)
         control_layout.addWidget(frame_group)
 
@@ -362,18 +327,20 @@ class RawViewer(QWidget):
         contrast_group_layout.addWidget(self.enhance_cb)
         # Min/Max controls
         contrast_group_layout.addWidget(QLabel("Min:"))
-        self.min_spin = QSpinBox()
+        self.min_spin = QDoubleSpinBox()
+        self.min_spin.setDecimals(0)
         self.min_spin.setRange(0, 65535)
-        self.min_spin.setMaximumWidth(70)
+        self.min_spin.setMaximumWidth(105)
         self.min_spin.setValue(0)
         self.min_spin.setToolTip("Minimum value")
         self.min_spin.valueChanged.connect(self.update_display)
         contrast_group_layout.addWidget(self.min_spin)
 
         contrast_group_layout.addWidget(QLabel("Max:"))
-        self.max_spin = QSpinBox()
+        self.max_spin = QDoubleSpinBox()
+        self.max_spin.setDecimals(0)
         self.max_spin.setRange(0, 65535)
-        self.max_spin.setMaximumWidth(70)
+        self.max_spin.setMaximumWidth(105)
         self.max_spin.setValue(255)
         self.max_spin.setToolTip("Maximum value")
         self.max_spin.valueChanged.connect(self.update_display)
@@ -562,10 +529,7 @@ class RawViewer(QWidget):
             if hasattr(self, 'loading_thread') and self.loading_thread and self.loading_thread.isRunning():
                 self.loading_thread.requestInterruption()
                 self.loading_thread.quit()
-                self.loading_thread.wait(2000)
-                if self.loading_thread.isRunning():
-                    self.loading_thread.terminate()
-                    self.loading_thread.wait(1000)
+                self.loading_thread.wait(3000)
         except Exception as e:
             print(f"[DEBUG] Error stopping loading_thread: {e}")
         
@@ -573,10 +537,7 @@ class RawViewer(QWidget):
             if hasattr(self, 'stack_thread') and self.stack_thread and self.stack_thread.isRunning():
                 self.stack_thread.requestInterruption()
                 self.stack_thread.quit()
-                self.stack_thread.wait(2000)
-                if self.stack_thread.isRunning():
-                    self.stack_thread.terminate()
-                    self.stack_thread.wait(1000)
+                self.stack_thread.wait(3000)
         except Exception as e:
             print(f"[DEBUG] Error stopping stack_thread: {e}")
         
@@ -653,40 +614,91 @@ class RawViewer(QWidget):
             QMessageBox.warning(self, "Memory", "File may exceed available RAM")
             return
 
-        # Try LazyFrames first (for multi-frame files)
+        # Try LazyFrames first (for all files, single or multi-frame)
         try:
             lf = LazyFrames(file_path, params['width'], params['height'], params['bitdepth'])
             num_frames = len(lf)
-        except Exception:
-            lf = None
-            num_frames = 0
+        except Exception as e:
+            QMessageBox.critical(self, "Load Error", f"Failed to initialize LazyFrames: {e}")
+            return
 
-        if lf is None or num_frames <= 1:
-            # Single frame or LazyFrames failed → full load
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setValue(0)
-            self.main_display.show_status("Loading... 0%")
-            self.loading_thread = RawLoadingThread(file_path, **params, parent=self)
-            self.loading_thread.progress.connect(self.progress_bar.setValue)
-            self.loading_thread.progress.connect(lambda v: self.main_display.show_status(f"Loading... {v}%"))
-            self.loading_thread.finished.connect(self.on_load_finished)
-            self.loading_thread.normalized.connect(self.on_normalized_ready)
-            self.loading_thread.error.connect(self.on_load_error)
-            self.loading_thread.start()
+        if num_frames == 0:
+            QMessageBox.critical(self, "Load Error", "File is empty or contains no frames.")
+            return
 
+        # Multi-frame (or single-frame) success
+        self.lazy_frames = lf
+        self.num_frames = num_frames
+        self.current_frame_index = 0
+
+        # Frame navigation controls
+        self.frame_index_spin.setRange(1, self.num_frames)
+        self.frame_index_spin.setValue(1)
+        self.frame_index_spin.setEnabled(True)
+        self.prev_frame_btn.setEnabled(self.num_frames > 1)
+        self.next_frame_btn.setEnabled(self.num_frames > 1)
+        self.play_btn.setEnabled(self.num_frames > 1)
+        self.speed_combo.setEnabled(self.num_frames > 1)
+        self.stack_btn.setEnabled(self.num_frames > 1)
+        self.export_btn.setEnabled(True)
+
+        # Range controls (always enabled, default full range)
+        self.range_start_spin.blockSignals(True)
+        self.range_end_spin.blockSignals(True)
+        self.range_start_spin.setRange(1, self.num_frames)
+        self.range_end_spin.setRange(1, self.num_frames)
+        self.range_start_spin.setValue(1)
+        self.range_end_spin.setValue(self.num_frames)
+        self.range_start_spin.setEnabled(True)
+        self.range_end_spin.setEnabled(True)
+        self.range_start_spin.blockSignals(False)
+        self.range_end_spin.blockSignals(False)
+
+        # Load and display first frame
+        try:
+            raw = lf.get_raw(0)
+            self.bitdepth = params['bitdepth']
+            self.raw_data = raw
+            if self.bitdepth > 8:
+                max_val = self._current_max_dn()
+                self.normalized_data = ((raw.astype(np.float64) / max_val) * 255.0).clip(0, 255).astype(np.uint8)
+            else:
+                self.normalized_data = raw.astype(np.uint8)
+            self.update_contrast_controls()
+            self.update_display()
+            self.update_histogram()
+            # Clear any status overlay
+            try:
+                self.main_display.clear_status()
+            except Exception:
+                pass
+            # Persist params silently for future auto-loads
+            try:
+                save_params_for_path(self.last_file_path, self.last_params)
+            except Exception:
+                pass
+            # Add to recent history
+            try:
+                add_recent(self.last_file_path, 'raw', self.last_params)
+            except Exception:
+                pass
+        except Exception as e:
+            QMessageBox.critical(self, "Load Error", f"Failed to read first frame: {e}")
+            # Fallback to single-frame-like UI state
             self.lazy_frames = None
             self.num_frames = 1
             self.current_frame_index = 0
-
-            # Frame navigation controls (single frame)
             self.frame_index_spin.setRange(1, 1)
             self.frame_index_spin.setValue(1)
-            self.frame_index_spin.setEnabled(True)      # Enabled even for single frame (shows current frame)
+            self.frame_index_spin.setEnabled(True)
             self.prev_frame_btn.setEnabled(False)
             self.next_frame_btn.setEnabled(False)
+            self.play_btn.setEnabled(False)
+            self.speed_combo.setEnabled(False)
             self.stack_btn.setEnabled(False)
+            self.export_btn.setEnabled(False)
 
-            # Range controls (always enabled, set to 1-1 for single frame)
+            # Range controls for fallback single-frame state
             self.range_start_spin.blockSignals(True)
             self.range_end_spin.blockSignals(True)
             self.range_start_spin.setRange(1, 1)
@@ -697,87 +709,6 @@ class RawViewer(QWidget):
             self.range_end_spin.setEnabled(True)
             self.range_start_spin.blockSignals(False)
             self.range_end_spin.blockSignals(False)
-
-        else:
-            # Multi-frame success
-            self.lazy_frames = lf
-            self.num_frames = num_frames
-            self.current_frame_index = 0
-
-            # Frame navigation controls (multi-frame)
-            self.frame_index_spin.setRange(1, self.num_frames)
-            self.frame_index_spin.setValue(1)
-            self.frame_index_spin.setEnabled(True)
-            self.prev_frame_btn.setEnabled(True)
-            self.next_frame_btn.setEnabled(True)
-            self.stack_btn.setEnabled(True)
-            self.export_btn.setEnabled(True)
-
-            # Range controls (always enabled, default full range)
-            self.range_start_spin.blockSignals(True)
-            self.range_end_spin.blockSignals(True)
-            self.range_start_spin.setRange(1, self.num_frames)
-            self.range_end_spin.setRange(1, self.num_frames)
-            self.range_start_spin.setValue(1)
-            self.range_end_spin.setValue(self.num_frames)
-            self.range_start_spin.setEnabled(True)
-            self.range_end_spin.setEnabled(True)
-            self.range_start_spin.blockSignals(False)
-            self.range_end_spin.blockSignals(False)
-
-            # Load and display first frame
-            try:
-                raw = lf.get_raw(0)
-                self.bitdepth = params['bitdepth']
-                self.raw_data = raw
-                if self.bitdepth > 8:
-                    max_val = (1 << self.bitdepth) - 1
-                    self.normalized_data = ((raw.astype(np.float32) / max_val) * 255.0).clip(0, 255).astype(np.uint8)
-                else:
-                    self.normalized_data = raw.astype(np.uint8)
-                self.update_contrast_controls()
-                self.update_display()
-                self.update_histogram()
-                # Clear any status overlay
-                try:
-                    self.main_display.clear_status()
-                except Exception:
-                    pass
-                # Persist params silently for future auto-loads
-                try:
-                    save_params_for_path(self.last_file_path, self.last_params)
-                except Exception:
-                    pass
-                # Add to recent history
-                try:
-                    add_recent(self.last_file_path, 'raw', self.last_params)
-                except Exception:
-                    pass
-            except Exception as e:
-                QMessageBox.critical(self, "Load Error", f"Failed to read first frame: {e}")
-                # Fallback to single-frame-like UI state
-                self.lazy_frames = None
-                self.num_frames = 1
-                self.current_frame_index = 0
-                self.frame_index_spin.setRange(1, 1)
-                self.frame_index_spin.setValue(1)
-                self.frame_index_spin.setEnabled(True)
-                self.prev_frame_btn.setEnabled(False)
-                self.next_frame_btn.setEnabled(False)
-                self.stack_btn.setEnabled(False)
-                self.export_btn.setEnabled(False)
-
-                # Range controls for fallback single-frame state
-                self.range_start_spin.blockSignals(True)
-                self.range_end_spin.blockSignals(True)
-                self.range_start_spin.setRange(1, 1)
-                self.range_end_spin.setRange(1, 1)
-                self.range_start_spin.setValue(1)
-                self.range_end_spin.setValue(1)
-                self.range_start_spin.setEnabled(True)
-                self.range_end_spin.setEnabled(True)
-                self.range_start_spin.blockSignals(False)
-                self.range_end_spin.blockSignals(False)
 
     def _start_unload_and_then(self, callback=None):
         # Re-use UnloadThread to release resources and optionally run callback when done
@@ -808,6 +739,8 @@ class RawViewer(QWidget):
                     self.frame_index_spin.setEnabled(True)
                     self.prev_frame_btn.setEnabled(False)
                     self.next_frame_btn.setEnabled(False)
+                    self.play_btn.setEnabled(False)
+                    self.speed_combo.setEnabled(False)
                     self.stack_btn.setEnabled(False)
                     self.export_btn.setEnabled(False)
                     self.range_start_spin.setRange(1, 1)
@@ -917,6 +850,7 @@ class RawViewer(QWidget):
         self.update_contrast_controls()
         self.update_display()
         self.update_histogram()
+        QMessageBox.information(self, "Success", "Raw dataset loaded successfully.")
         gc.collect()
 
     def on_normalized_ready(self, display_data):
@@ -943,11 +877,12 @@ class RawViewer(QWidget):
             return
         data = self.normalized_data.copy()
         if self.enhance_cb.isChecked():
-            self.contrast_min = self.min_spin.value()
-            self.contrast_max = self.max_spin.value()
+            self.contrast_min = int(self.min_spin.value())
+            self.contrast_max = int(self.max_spin.value())
             if self.contrast_max > self.contrast_min:
+                source = self.raw_data if self.raw_data is not None else self.normalized_data
                 scale = 255.0 / max(1, self.contrast_max - self.contrast_min)
-                data = np.clip((data.astype(np.float32) - self.contrast_min) * scale, 0, 255).astype(np.uint8)
+                data = np.clip((source.astype(np.float64) - self.contrast_min) * scale, 0, 255).astype(np.uint8)
         pil_img = Image.fromarray(data)
         self.current_pil_image = pil_img
         self.main_display.show_image(pil_img)
@@ -962,14 +897,27 @@ class RawViewer(QWidget):
             pass
 
     def update_contrast_controls(self):
-        # Contrast controls are for display adjustment (0-255), not DN range
-        self.min_spin.setRange(0, 255)
-        self.max_spin.setRange(0, 255)
+        max_dn = float(self._current_max_dn())
+        self.min_spin.setRange(0, max_dn)
+        self.max_spin.setRange(0, max_dn)
         self.min_spin.setValue(0)
-        self.max_spin.setValue(255)
+        self.max_spin.setValue(max_dn)
         self.contrast_min = 0
-        self.contrast_max = 255
+        self.contrast_max = int(max_dn)
+        try:
+            tip = f"Native DN range for {int(self.bitdepth)}-bit data: 0-{int(max_dn)}"
+            self.min_spin.setToolTip(tip)
+            self.max_spin.setToolTip(tip)
+        except Exception:
+            pass
         self.enhance_cb.setChecked(False)
+
+    def _current_max_dn(self):
+        try:
+            bd = int(getattr(self, "bitdepth", 8))
+        except Exception:
+            bd = 8
+        return (1 << bd) - 1 if bd > 8 else 255
 
     def update_histogram(self):
         if self.raw_data is None:
@@ -1102,29 +1050,30 @@ class RawViewer(QWidget):
         self.set_current_frame(idx0)
 
     def set_current_frame(self, idx):
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)
-        self.progress_bar.setFormat(f"Loading frame {idx + 1}/{self.num_frames}...")
+        is_playing = getattr(self, 'playing', False)
+        if not is_playing:
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 0)
+            self.progress_bar.setFormat(f"Loading frame {idx + 1}/{self.num_frames}...")
         try:
             raw = self.lazy_frames.get_raw(idx)
             self.raw_data = raw
             self.bitdepth = self.lazy_frames.bitdepth
             if self.bitdepth > 8:
                 max_val = (1 << self.bitdepth) - 1
-                # For 16-bit, check if it's actually low bit-depth data
                 if self.bitdepth == 16:
                     actual_max = raw.max()
                     if actual_max <= 1023:
                         max_val = 1023
                     elif actual_max <= 4095:
                         max_val = 4095
-                self.normalized_data = ((raw.astype(np.float32) / max_val) * 255.0).clip(0, 255).astype(np.uint8)
+                self.normalized_data = ((raw.astype(np.float64) / max_val) * 255.0).clip(0, 255).astype(np.uint8)
             else:
                 self.normalized_data = raw.astype(np.uint8)
             self.current_frame_index = idx
-            self.update_contrast_controls()
             self.update_display()
-            self.update_histogram()
+            if not is_playing:
+                self.update_histogram()
 
             self.frame_index_spin.blockSignals(True)
             try:
@@ -1134,14 +1083,17 @@ class RawViewer(QWidget):
             self.frame_index_spin.blockSignals(False)
         except Exception as e:
             QMessageBox.critical(self, "Frame Error", f"Error loading frame {idx + 1}: {str(e)}")
+            if is_playing:
+                self.toggle_play()
         finally:
-            self.progress_bar.setVisible(False)
-            gc.collect()
+            if not is_playing:
+                self.progress_bar.setVisible(False)
+                gc.collect()
 
     # ---------------- Stack creation ----------------
     def create_stack_view(self):
         if not self.lazy_frames:
-            QMessageBox.information(self, "Info", "No multi-frame raw loaded to create stack.")
+            QMessageBox.warning(self, "Warning", "No multi-frame raw loaded to create stack.")
             return
 
         # Estimate a safe pixel budget from available RAM (conservative fraction)
@@ -1238,7 +1190,7 @@ class RawViewer(QWidget):
         if tab_name == "Display":
             img = getattr(self.main_display, 'current_pil_image', None)
             if img is None:
-                QMessageBox.information(self, "Export", "Nothing to export in Display tab.")
+                QMessageBox.warning(self, "Export Warning", "Nothing to export in Display tab.")
                 return
             filename, _ = QFileDialog.getSaveFileName(
                 self, "Export", default_name, "PNG (*.png);;BMP (*.bmp);;TIFF (*.tif *.tiff)"
@@ -1251,7 +1203,7 @@ class RawViewer(QWidget):
         if tab_name == "Frames":
             img = getattr(self.frames_display, 'current_pil_image', None)
             if img is None:
-                QMessageBox.information(self, "Export", "Nothing to export in Frames tab.")
+                QMessageBox.warning(self, "Export Warning", "Nothing to export in Frames tab.")
                 return
             filename, _ = QFileDialog.getSaveFileName(
                 self, "Export", default_name, "PNG (*.png);;BMP (*.bmp);;TIFF (*.tif *.tiff)"
@@ -1266,7 +1218,7 @@ class RawViewer(QWidget):
             return
         pixmap = current_tab.grab()
         if pixmap.isNull():
-            QMessageBox.information(self, "Export", "Nothing visible to export in this tab.")
+            QMessageBox.warning(self, "Export Warning", "Nothing visible to export in this tab.")
             return
         filename, _ = QFileDialog.getSaveFileName(self, "Export", default_name, "PNG (*.png)")
         if filename:
@@ -1397,7 +1349,7 @@ class RawViewer(QWidget):
                 self.last_params = params.copy()
                 try:
                     lf = LazyFrames(lp, params.get('width', 0), params.get('height', 0), params.get('bitdepth', 8))
-                    if lf and len(lf) > 1:
+                    if lf and len(lf) >= 1:
                         self.lazy_frames = lf
                         self.num_frames = len(lf)
                         self.current_frame_index = int(data.get('current_frame_index', 0))
@@ -1406,18 +1358,20 @@ class RawViewer(QWidget):
                             self.frame_index_spin.setValue(self.current_frame_index + 1)
                         except Exception:
                             self.frame_index_spin.setValue(1)
-                        self.prev_frame_btn.setEnabled(True)
-                        self.next_frame_btn.setEnabled(True)
+                        self.prev_frame_btn.setEnabled(self.num_frames > 1)
+                        self.next_frame_btn.setEnabled(self.num_frames > 1)
+                        self.play_btn.setEnabled(self.num_frames > 1)
+                        self.speed_combo.setEnabled(self.num_frames > 1)
                         self.frame_index_spin.setEnabled(True)
-                        self.stack_btn.setEnabled(True)
+                        self.stack_btn.setEnabled(self.num_frames > 1)
                         self.export_btn.setEnabled(True)
                         try:
                             raw = lf.get_raw(self.current_frame_index)
                             self.raw_data = raw
                             self.bitdepth = lf.bitdepth
                             if self.bitdepth > 8:
-                                max_val = (1 << self.bitdepth) - 1
-                                self.normalized_data = ((raw.astype(np.float32) / max_val) * 255.0).clip(0, 255).astype(np.uint8)
+                                max_val = self._current_max_dn()
+                                self.normalized_data = ((raw.astype(np.float64) / max_val) * 255.0).clip(0, 255).astype(np.uint8)
                             else:
                                 self.normalized_data = raw.astype(np.uint8)
                             self.update_contrast_controls()
@@ -1425,25 +1379,6 @@ class RawViewer(QWidget):
                             self.update_histogram()
                         except Exception as e:
                             print(f"RawViewer.load_state: failed to read frame: {e}")
-                    else:
-                        # Single frame fallback
-                        try:
-                            self.range_start_spin.setEnabled(False)
-                            self.range_end_spin.setEnabled(False)
-                            self.range_start_spin.setRange(1, 1)
-                            self.range_end_spin.setRange(1, 1)
-                            self.range_start_spin.setValue(1)
-                            self.range_end_spin.setValue(1)
-                        except Exception:
-                            pass
-                        self.progress_bar.setVisible(True)
-                        self.progress_bar.setValue(0)
-                        self.loading_thread = RawLoadingThread(lp, **params, parent=self)
-                        self.loading_thread.progress.connect(self.progress_bar.setValue)
-                        self.loading_thread.finished.connect(self.on_load_finished)
-                        self.loading_thread.normalized.connect(self.on_normalized_ready)
-                        self.loading_thread.error.connect(self.on_load_error)
-                        self.loading_thread.start()
                 except Exception as e:
                     print(f"RawViewer.load_state: failed to start loader: {e}")
 
@@ -1463,3 +1398,42 @@ class RawViewer(QWidget):
                 pass
         except Exception as e:
             print(f"RawViewer.load_state error: {e}")
+
+    def toggle_play(self):
+        if getattr(self, 'num_frames', 0) <= 1:
+            return
+        
+        self.playing = not getattr(self, 'playing', False)
+        if self.playing:
+            self.play_btn.setText("⏸ Pause")
+            try:
+                self.play_timer.start(self.play_delay)
+            except Exception:
+                self.play_next_frame()
+        else:
+            self.play_btn.setText("▶ Play")
+            try:
+                self.play_timer.stop()
+            except Exception:
+                pass
+                
+    def change_speed(self, text):
+        try:
+            rate = float(text[:-1])
+            self.play_delay = int(100 / rate)
+            if getattr(self, 'playing', False) and getattr(self, 'play_timer', None) and self.play_timer.isActive():
+                self.play_timer.setInterval(self.play_delay)
+        except Exception as e:
+            print(f"Speed change error: {e}")
+            
+    def play_next_frame(self):
+        if not getattr(self, 'playing', False) or getattr(self, 'num_frames', 0) <= 1:
+            self.play_btn.setText("▶ Play")
+            self.playing = False
+            return
+            
+        current = self.frame_index_spin.value()
+        if current < self.num_frames:
+            self.frame_index_spin.setValue(current + 1)
+        else:
+            self.frame_index_spin.setValue(1)

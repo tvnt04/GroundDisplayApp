@@ -627,7 +627,7 @@ class EditorTab(QWidget):
         actions_label.setWordWrap(True)
         actions_layout.addWidget(actions_label)
         
-        self.force_grid = QCheckBox("Force Grid Mode (equal-size swap only)")
+        self.force_grid = QCheckBox("Force Grid Mode")
         self.force_grid.stateChanged.connect(self.show_grid)
         actions_layout.addWidget(self.force_grid)
         

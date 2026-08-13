@@ -605,13 +605,7 @@ class TiledDisplay(QWidget):
                 try:
                     main_app = getattr(self, '_main_app', None)
                     if main_app and getattr(main_app, 'iris', None):
-                        w = self
-                        tab_index = -1
-                        while w:
-                            tab_index = main_app.tab_widget.indexOf(w)
-                            if tab_index != -1:
-                                break
-                            w = w.parent()
+                        tab_index = main_app.find_tab_index(self)
                         session_folder = self.settings.get('session', '')
                         frame_count = len(self.original_tiles_per_frame)
                         main_app.iris.notify_dataset_loaded(
@@ -781,13 +775,7 @@ class TiledDisplay(QWidget):
         try:
             main_app = getattr(self, '_main_app', None)
             if main_app and getattr(main_app, 'iris', None):
-                w = self
-                tab_index = -1
-                while w:
-                    tab_index = main_app.tab_widget.indexOf(w)
-                    if tab_index != -1:
-                        break
-                    w = w.parent()
+                tab_index = main_app.find_tab_index(self)
                 main_app.iris.notify_frame_changed(tab_index, v)
         except Exception:
             pass
